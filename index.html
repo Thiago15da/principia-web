@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cursillo Principia | La Base de tu Ingeniería</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+                    colors: {
+                        principia: { 
+                            blue: '#1e3a8a',  // Azul Oscuro del logo
+                            grey: '#64748b',  // Gris de la 'P'
+                            dark: '#0f172a',  // Negro/Azul noche
+                            accent: '#2563eb' // Azul eléctrico para botones
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+    </style>
+</head>
+<body x-data="appData()" class="bg-slate-50 text-slate-900 selection:bg-principia-blue selection:text-white">
+
+    <nav class="fixed w-full z-40 transition-all duration-300 glass h-24 flex items-center">
+        <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            
+            <div class="flex items-center gap-3 cursor-pointer group" onclick="window.scrollTo(0,0)">
+                <img src="logo.png" alt="Logo Principia" class="h-16 w-auto object-contain group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+                
+                <div class="hidden flex-col leading-none" style="display:none">
+                    <span class="text-sm font-bold text-slate-500 tracking-wide uppercase">Cursillo</span>
+                    <span class="text-3xl font-black text-slate-900 tracking-tighter">PRINCIPIA</span>
+                </div>
+            </div>
+
+            <div class="hidden md:flex items-center space-x-8 text-sm font-bold text-slate-600">
+                <a href="#metodologia" class="hover:text-principia-blue transition">Metodología</a>
+                <a href="#planes" class="hover:text-principia-blue transition">Planes e Inscripción</a>
+                <a href="#staff" class="hover:text-principia-blue transition">Docentes</a>
+            </div>
+
+            <button 
+                @click="openPortal()"
+                class="group relative flex items-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-xl hover:-translate-y-0.5 overflow-hidden bg-slate-900 text-white hover:bg-principia-blue">
+                <i data-lucide="user-circle" class="w-5 h-5"></i>
+                <span x-text="isLoggedIn ? 'Mi Portal' : 'Soy Alumno'"></span>
+            </button>
+        </div>
+    </nav>
+
+    <main class="relative overflow-hidden pt-24">
+        
+        <section class="relative py-20 lg:py-32 px-4 text-center max-w-7xl mx-auto">
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-100 rounded-full blur-[120px] -z-10 opacity-60"></div>
+            
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm text-principia-blue text-xs font-bold uppercase mb-8 animate-fade-in-up">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                Ciclo Lectivo 2026 Habilitado
+            </div>
+            
+            <h1 class="text-5xl md:text-8xl font-black text-slate-900 leading-[0.9] mb-8 tracking-tighter">
+                Tu Ingreso a <br>
+                <span class="text-principia-blue">Ingeniería.</span>
+            </h1>
+            
+            <p class="text-xl text-slate-500 max-w-2xl mx-auto mb-12 font-medium leading-relaxed">
+                Especialistas en <strong>FP-UNA</strong> y <strong>UPTP (Taiwán)</strong>. 
+                El único sistema que combina excelencia docente con analítica de rendimiento.
+            </p>
+            
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="#planes" class="px-8 py-4 rounded-2xl font-bold text-lg text-white bg-principia-accent hover:bg-principia-blue transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                    Quiero Inscribirme
+                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </a>
+                <button @click="openPortal()" class="px-8 py-4 rounded-2xl font-bold text-lg bg-white border-2 border-slate-200 text-slate-700 hover:border-principia-blue hover:text-principia-blue transition">
+                    Ya soy Alumno
+                </button>
+            </div>
+        </section>
+
+        <section id="metodologia" class="py-20 bg-white border-y border-slate-100">
+            <div class="max-w-7xl mx-auto px-4 grid md:grid-cols-3 gap-12">
+                <div class="group">
+                    <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-principia-blue mb-6 group-hover:scale-110 transition">
+                        <i data-lucide="brain-circuit" class="w-8 h-8"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3">Metodología UPTP</h3>
+                    <p class="text-slate-500 leading-relaxed">Módulos exclusivos en inglés técnico. Preparamos Math, Logic & Physics con el formato exacto del examen de Taiwán.</p>
+                </div>
+                <div class="group">
+                    <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-principia-blue mb-6 group-hover:scale-110 transition">
+                        <i data-lucide="library" class="w-8 h-8"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3">Materiales Premium</h3>
+                    <p class="text-slate-500 leading-relaxed">Acceso 24/7 a bibliotecas digitales, ejercitarios resueltos y clases grabadas. Todo organizado en tu portal.</p>
+                </div>
+                <div class="group">
+                    <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-principia-blue mb-6 group-hover:scale-110 transition">
+                        <i data-lucide="target" class="w-8 h-8"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3">Simulacros FP-UNA</h3>
+                    <p class="text-slate-500 leading-relaxed">Exámenes semanales con corrección automatizada para medir tu nivel real antes del día D.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="planes" class="py-24 px-4 bg-slate-50">
+            <div class="max-w-5xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-5xl font-black text-slate-900 mb-6">Planes de Inversión</h2>
+                    <p class="text-slate-500 text-lg">Elegí tu camino. Nosotros nos encargamos del resto.</p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8 items-start">
+                    <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-2 bg-slate-900"></div>
+                        <h3 class="text-2xl font-bold mb-2">Ingreso FP-UNA</h3>
+                        <p class="text-slate-500 mb-6 text-sm">Preparación Intensiva (Cálculo, Física, Geo)</p>
+                        <div class="flex items-end gap-1 mb-6">
+                            <span class="text-4xl font-black text-slate-900">Gs. 450.000</span>
+                            <span class="text-sm text-slate-400 font-bold mb-1">/ mes</span>
+                        </div>
+                        <ul class="space-y-3 mb-8 text-sm font-medium text-slate-600">
+                            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-green-500"></i> Clases Presenciales Lunes a Sábado</li>
+                            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-green-500"></i> Acceso Total al Portal Web</li>
+                            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-green-500"></i> Materiales Físicos Incluidos</li>
+                        </ul>
+                        <button @click="openRegister('FP-UNA')" class="w-full py-3 rounded-xl border-2 border-slate-900 font-bold hover:bg-slate-900 hover:text-white transition">Pre-inscribirme</button>
+                    </div>
+
+                    <div class="bg-principia-blue text-white p-8 rounded-3xl shadow-2xl relative overflow-hidden transform md:-translate-y-4">
+                        <div class="absolute top-4 right-4 bg-green-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase">Más Elegido</div>
+                        <h3 class="text-2xl font-bold mb-2">Pack Premium UPTP</h3>
+                        <p class="text-blue-200 mb-6 text-sm">Preparación Bilingüe + Entrevista</p>
+                        <div class="flex items-end gap-1 mb-6">
+                            <span class="text-4xl font-black">Gs. 550.000</span>
+                            <span class="text-sm text-blue-200 font-bold mb-1">/ mes</span>
+                        </div>
+                        <ul class="space-y-3 mb-8 text-sm font-medium text-blue-100">
+                            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-green-400"></i> Math & Physics in English</li>
+                            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-green-400"></i> Coaching para Entrevista Oral</li>
+                            <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-green-400"></i> Soporte para Documentación</li>
+                        </ul>
+                        <button @click="openRegister('UPTP')" class="w-full py-3 rounded-xl bg-white text-principia-blue font-bold hover:bg-blue-50 transition shadow-lg">Quiero este Plan</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="staff" class="py-20 bg-white">
+            <div class="max-w-7xl mx-auto px-4">
+                <h2 class="text-3xl font-black text-slate-900 mb-12 text-center">Formados por los Mejores</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div class="text-center group">
+                        <div class="w-24 h-24 mx-auto bg-slate-200 rounded-full mb-4 overflow-hidden relative">
+                            <i data-lucide="user" class="w-12 h-12 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-400"></i>
+                        </div>
+                        <p class="font-bold text-lg">Ing. R. Méndez</p>
+                        <p class="text-xs text-principia-blue font-bold uppercase">Coord. Matemáticas</p>
+                    </div>
+                    <div class="text-center group">
+                        <div class="w-24 h-24 mx-auto bg-slate-200 rounded-full mb-4 overflow-hidden relative">
+                            <i data-lucide="user" class="w-12 h-12 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-400"></i>
+                        </div>
+                        <p class="font-bold text-lg">Lic. S. Duarte</p>
+                        <p class="text-xs text-principia-blue font-bold uppercase">Coord. Inglés UPTP</p>
+                    </div>
+                     <div class="text-center group">
+                        <div class="w-24 h-24 mx-auto bg-slate-200 rounded-full mb-4 overflow-hidden relative">
+                            <i data-lucide="user" class="w-12 h-12 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-400"></i>
+                        </div>
+                        <p class="font-bold text-lg">Ing. P. Torres</p>
+                        <p class="text-xs text-principia-blue font-bold uppercase">Física</p>
+                    </div>
+                    <div class="text-center group">
+                        <div class="w-24 h-24 mx-auto bg-slate-200 rounded-full mb-4 overflow-hidden relative">
+                            <i data-lucide="user" class="w-12 h-12 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-400"></i>
+                        </div>
+                        <p class="font-bold text-lg">Lic. A. Benítez</p>
+                        <p class="text-xs text-principia-blue font-bold uppercase">Castellano</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="bg-slate-900 text-white py-12 border-t border-slate-800">
+            <div class="max-w-7xl mx-auto px-4 grid md:grid-cols-3 gap-8 text-sm">
+                <div>
+                    <h4 class="font-bold text-lg mb-4">Cursillo PRINCIPIA</h4>
+                    <p class="text-slate-400 mb-4">Formando ingenieros de élite desde 2018. Tu futuro empieza con una buena base.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-lg mb-4">Contacto</h4>
+                    <p class="text-slate-400 flex items-center gap-2 mb-2"><i data-lucide="map-pin" class="w-4 h-4"></i> Asunción, Paraguay</p>
+                    <p class="text-slate-400 flex items-center gap-2"><i data-lucide="phone" class="w-4 h-4"></i> +595 981 000 000</p>
+                </div>
+                <div class="text-right flex flex-col justify-end">
+                    <p class="text-slate-500">Desarrollado con ingeniería por</p>
+                    <p class="font-black text-xl tracking-tighter">NOVATEC</p>
+                </div>
+            </div>
+        </footer>
+    </main>
+    <div x-show="registerOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" @click="registerOpen = false"></div>
+        <div class="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl relative z-10 slide-up">
+            <button @click="registerOpen = false" class="absolute top-4 right-4 text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-6 h-6"></i></button>
+            
+            <h2 class="text-2xl font-bold mb-1">Pre-Inscripción 2026</h2>
+            <p class="text-sm text-slate-500 mb-6">Completa tus datos para reservar tu lugar en el plan <span x-text="selectedPlan" class="font-bold text-principia-blue"></span>.</p>
+            
+            <form class="space-y-4" @submit.prevent="alert('¡Solicitud enviada! Te contactaremos al WhatsApp.')">
+                <input type="text" placeholder="Nombre Completo" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-principia-blue" required>
+                <input type="tel" placeholder="WhatsApp (Ej: 0981...)" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-principia-blue" required>
+                <select class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-principia-blue">
+                    <option>Turno Mañana (08:00 - 12:00)</option>
+                    <option>Turno Tarde (14:00 - 18:00)</option>
+                </select>
+                <button type="submit" class="w-full bg-principia-blue text-white py-4 rounded-xl font-bold hover:bg-slate-900 transition shadow-lg">Enviar Solicitud</button>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="portalOpen" x-cloak class="fixed inset-0 z-50 flex flex-col bg-slate-100 transition-all duration-300">
+        
+        <div x-show="!isLoggedIn" class="flex-1 flex flex-col items-center justify-center p-4 relative animate-fade-in">
+            <button @click="portalOpen = false" class="absolute top-6 right-6 p-2 rounded-full hover:bg-black/10 transition"><i data-lucide="x" class="w-6 h-6 opacity-60"></i></button>
+
+            <div class="w-full max-w-sm p-8 bg-white rounded-3xl shadow-2xl border border-slate-200 slide-up text-center">
+                <div class="w-16 h-16 bg-principia-blue rounded-2xl flex items-center justify-center text-white font-black text-2xl mx-auto mb-6 shadow-lg shadow-blue-900/20">P</div>
+                <h2 class="text-2xl font-bold text-slate-900">Acceso Alumnos</h2>
+                <p class="text-sm text-slate-500 mb-8">Ingresá tus credenciales académicas</p>
+
+                <div class="space-y-4 text-left" :class="loginError ? 'shake' : ''">
+                    <div>
+                        <label class="text-xs font-bold text-slate-400 uppercase ml-1">Usuario</label>
+                        <input x-model="userInput" type="text" placeholder="Ej: Orlando Ramirez" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-principia-blue font-medium transition-all">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-400 uppercase ml-1">Contraseña</label>
+                        <input x-model="passInput" type="password" placeholder="••••" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-principia-blue font-medium transition-all">
+                        <p x-show="loginError" class="text-red-500 text-xs font-bold mt-2 flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3"></i> Contraseña incorrecta (Usa: 1234)</p>
+                    </div>
+                    <button @click="login()" class="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-principia-blue transition shadow-lg mt-2">Iniciar Sesión</button>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="isLoggedIn" class="flex h-full overflow-hidden">
+            
+            <aside class="w-72 bg-slate-900 text-white hidden md:flex flex-col justify-between py-6">
+                <div>
+                    <div class="px-6 mb-10 flex items-center gap-3">
+                        <div class="w-8 h-8 bg-principia-blue rounded-lg flex items-center justify-center font-bold">P</div>
+                        <span class="font-bold tracking-wide text-sm uppercase">Principia <span class="text-slate-500">LMS</span></span>
+                    </div>
+                    <nav class="px-3 space-y-1">
+                        <template x-for="item in menuItems">
+                            <a @click="tab = item.id; folder = 'root'" 
+                               class="flex items-center gap-3 px-4 py-3 rounded-xl font-medium cursor-pointer transition-all"
+                               :class="tab === item.id ? 'bg-principia-blue text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'">
+                                <i :data-lucide="item.icon" class="w-5 h-5"></i>
+                                <span x-text="item.label"></span>
+                            </a>
+                        </template>
+                    </nav>
+                </div>
+                <div class="px-4">
+                    <div class="bg-slate-800 rounded-xl p-4 mb-4 border border-slate-700">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold mb-1">Tu Estado</p>
+                        <div class="flex items-center gap-2 text-green-400 text-sm font-bold">
+                            <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
+                            Matriculado
+                        </div>
+                    </div>
+                    <button @click="logout()" class="flex items-center gap-2 text-red-400 hover:text-red-300 text-sm font-bold px-4 py-2 w-full hover:bg-slate-800 rounded-lg transition"><i data-lucide="log-out" class="w-4 h-4"></i> Cerrar Sesión</button>
+                </div>
+            </aside>
+
+            <main class="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden relative">
+                <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <button @click="minimize()" class="md:hidden opacity-60"><i data-lucide="chevron-down" class="w-6 h-6"></i></button>
+                        <h2 class="font-bold text-lg capitalize text-slate-800" x-text="getTabTitle()"></h2>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button @click="minimize()" class="hidden md:flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 px-3 py-1.5 rounded-lg transition"><i data-lucide="minus" class="w-4 h-4"></i> Minimizar</button>
+                        <div class="flex items-center gap-3 pl-4 border-l">
+                            <div class="text-right hidden sm:block">
+                                <p class="text-sm font-bold text-slate-900" x-text="currentUser"></p>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">Alumno Regular</p>
+                            </div>
+                            <div class="w-9 h-9 bg-principia-blue rounded-full flex items-center justify-center text-white font-bold text-sm" x-text="userInitials"></div>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+                    
+                    <div x-show="tab === 'dashboard'" class="space-y-6 slide-up">
+                        <div class="relative overflow-hidden rounded-3xl p-8 text-white shadow-xl bg-gradient-to-r from-slate-900 to-principia-blue">
+                            <div class="relative z-10">
+                                <h3 class="text-3xl font-bold mb-2">Hola, <span x-text="currentUser.split(' ')[0]"></span>!</h3>
+                                <p class="opacity-80 max-w-md text-sm">Recordá que este sábado hay simulacro obligatorio de Física.</p>
+                                <button @click="tab = 'horario'" class="mt-6 bg-white/20 hover:bg-white/30 px-6 py-2 rounded-xl font-bold text-sm transition border border-white/30">Ver mi Horario</button>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                                <p class="text-xs font-bold text-slate-400 uppercase mb-2">Promedio</p>
+                                <p class="text-3xl font-black text-slate-900">88%</p>
+                            </div>
+                            <div class="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                                <p class="text-xs font-bold text-slate-400 uppercase mb-2">Asistencia</p>
+                                <p class="text-3xl font-black text-green-600">95%</p>
+                            </div>
+                            <div class="col-span-2 p-5 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-bold text-slate-400 uppercase mb-1">Próximo Examen</p>
+                                    <p class="text-xl font-bold text-slate-900">Física Mecánica</p>
+                                    <p class="text-xs text-principia-blue font-bold mt-1">Sábado 08:00 hs</p>
+                                </div>
+                                <div class="w-12 h-12 bg-blue-50 text-principia-blue rounded-xl flex items-center justify-center"><i data-lucide="calendar" class="w-6 h-6"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="tab === 'horario'" class="slide-up">
+                        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                                <h3 class="font-bold text-slate-800">Horario Semanal</h3>
+                                <span class="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded">Turno Mañana</span>
+                            </div>
+                            <div class="divide-y divide-slate-100">
+                                <div class="p-4 flex gap-4">
+                                    <div class="w-12 pt-1 font-bold text-slate-400 text-sm text-center">LUN</div>
+                                    <div class="flex-1 space-y-2">
+                                        <div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
+                                            <p class="font-bold text-slate-800 text-sm">08:00 - Cálculo Diferencial</p>
+                                            <p class="text-xs text-slate-500">Prof. Martínez • Aula 4</p>
+                                        </div>
+                                        <div class="bg-slate-50 p-3 rounded-lg border-l-4 border-slate-300">
+                                            <p class="font-bold text-slate-800 text-sm">10:30 - Geometría Analítica</p>
+                                            <p class="text-xs text-slate-500">Prof. Sosa • Aula 2</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 flex gap-4">
+                                    <div class="w-12 pt-1 font-bold text-slate-400 text-sm text-center">MAR</div>
+                                    <div class="flex-1 space-y-2">
+                                        <div class="bg-orange-50 p-3 rounded-lg border-l-4 border-orange-500">
+                                            <p class="font-bold text-slate-800 text-sm">08:00 - Física Mecánica</p>
+                                            <p class="text-xs text-slate-500">Prof. Torres • Lab Física</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 flex gap-4">
+                                    <div class="w-12 pt-1 font-bold text-slate-400 text-sm text-center">MIE</div>
+                                    <div class="flex-1 space-y-2">
+                                        <div class="bg-indigo-50 p-3 rounded-lg border-l-4 border-indigo-500">
+                                            <p class="font-bold text-slate-800 text-sm">08:00 - UPTP English Math</p>
+                                            <p class="text-xs text-slate-500">Teacher Sarah • Lab Idiomas</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="tab === 'materiales'" class="slide-up">
+                        <div class="mb-6 flex items-center gap-2 text-sm">
+                             <button @click="folder = 'root'" class="px-3 py-1.5 rounded-lg border bg-white font-bold flex items-center gap-2 hover:bg-slate-50"><i data-lucide="home" class="w-4 h-4"></i> Inicio</button>
+                             <span x-show="folder !== 'root'" class="text-slate-300">/</span>
+                             <span x-show="folder !== 'root'" class="px-3 py-1.5 rounded-lg bg-slate-200 font-bold capitalize text-slate-700" x-text="folder"></span>
+                        </div>
+
+                        <div x-show="folder === 'root'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div @click="folder = 'matemática'" class="bg-white p-6 rounded-2xl border border-slate-200 hover:border-principia-blue cursor-pointer transition text-center group shadow-sm hover:shadow-md">
+                                <i data-lucide="folder" class="w-12 h-12 text-blue-500 mx-auto mb-3 fill-current group-hover:scale-110 transition"></i>
+                                <p class="font-bold text-slate-700">Matemática</p>
+                                <p class="text-xs text-slate-400">14 archivos</p>
+                            </div>
+                            <div @click="folder = 'física'" class="bg-white p-6 rounded-2xl border border-slate-200 hover:border-orange-500 cursor-pointer transition text-center group shadow-sm hover:shadow-md">
+                                <i data-lucide="folder" class="w-12 h-12 text-orange-500 mx-auto mb-3 fill-current group-hover:scale-110 transition"></i>
+                                <p class="font-bold text-slate-700">Física</p>
+                                <p class="text-xs text-slate-400">8 archivos</p>
+                            </div>
+                        </div>
+
+                        <div x-show="folder !== 'root'" class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                            <div class="p-4 border-b border-slate-100 font-bold text-xs text-slate-400 uppercase flex justify-between items-center">
+                                <span>Archivos en <span x-text="folder"></span></span>
+                                <button @click="folder = 'root'" class="md:hidden text-blue-600">Atrás</button>
+                            </div>
+                            <div class="divide-y divide-slate-100">
+                                <template x-for="i in 4">
+                                    <div class="p-4 flex items-center justify-between hover:bg-slate-50 transition cursor-pointer group">
+                                        <div class="flex items-center gap-4">
+                                            <div class="p-2 bg-red-50 text-red-500 rounded-lg"><i data-lucide="file-text" class="w-5 h-5"></i></div>
+                                            <div>
+                                                <p class="font-bold text-sm text-slate-700 group-hover:text-principia-blue transition">Ejercitario Práctico #<span x-text="i"></span>.pdf</p>
+                                                <p class="text-[10px] text-slate-400">2.4 MB • Hace 2 días</p>
+                                            </div>
+                                        </div>
+                                        <i data-lucide="download" class="w-4 h-4 text-slate-400 group-hover:text-slate-800"></i>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-slate-200 flex justify-around pb-2 pt-1 z-50">
+                <template x-for="item in menuItems">
+                    <button @click="tab = item.id; folder = 'root'" 
+                            class="flex flex-col items-center p-2 w-16 transition-all"
+                            :class="tab === item.id ? 'text-principia-blue' : 'text-slate-400'">
+                        <i :data-lucide="item.icon" class="w-6 h-6" :class="tab === item.id ? 'fill-current/10' : ''"></i>
+                        <span class="text-[10px] font-bold mt-1" x-text="item.label"></span>
+                    </button>
+                </template>
+            </nav>
+        </div>
+    </div>
+
+    <script>
+        function appData() {
+            return {
+                // Estado Global
+                portalOpen: false,
+                registerOpen: false,
+                isLoggedIn: false,
+                selectedPlan: '',
+                
+                // Datos Usuario
+                userInput: '',
+                passInput: '',
+                loginError: false,
+                currentUser: 'Invitado',
+                userInitials: 'IN',
+                
+                // Navegación Portal
+                tab: 'dashboard',
+                folder: 'root',
+                menuItems: [
+                    {id: 'dashboard', icon: 'layout-dashboard', label: 'Inicio'},
+                    {id: 'horario', icon: 'calendar', label: 'Horario'},
+                    {id: 'materiales', icon: 'folder-open', label: 'Docs'}
+                ],
+
+                // Funciones
+                openPortal() {
+                    this.portalOpen = true;
+                },
+                openRegister(plan) {
+                    this.selectedPlan = plan;
+                    this.registerOpen = true;
+                },
+                login() {
+                    if (this.passInput === '1234') {
+                        // Lógica para Orlando Ramirez
+                        let name = this.userInput.trim();
+                        if(name === '') {
+                            this.currentUser = 'Orlando Ramirez'; // Default Owner
+                        } else {
+                            this.currentUser = name.replace(/\b\w/g, l => l.toUpperCase());
+                        }
+                        
+                        let parts = this.currentUser.split(' ');
+                        this.userInitials = parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0][0] + parts[0][1];
+                        
+                        this.isLoggedIn = true;
+                        this.loginError = false;
+                    } else {
+                        this.loginError = true;
+                        setTimeout(() => this.loginError = false, 600);
+                    }
+                },
+                logout() {
+                    this.isLoggedIn = false;
+                    this.portalOpen = false;
+                    this.userInput = '';
+                    this.passInput = '';
+                    this.tab = 'dashboard';
+                },
+                minimize() {
+                    this.portalOpen = false;
+                },
+                getTabTitle() {
+                    const titles = {
+                        'dashboard': 'Panel de Control',
+                        'horario': 'Horario Semanal',
+                        'materiales': 'Biblioteca Digital'
+                    };
+                    return titles[this.tab];
+                }
+            }
+        }
+        
+        // Inicializar Iconos
+        lucide.createIcons();
+        document.addEventListener('alpine:init', () => {
+            setInterval(() => lucide.createIcons(), 500);
+        });
+    </script>
+</body>
+</html>
