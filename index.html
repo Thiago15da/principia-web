@@ -97,33 +97,45 @@
   // CONFIG
   // ---------------------------------------------------------------------
   const CONFIG = {
-    // Reemplazar con el link "Publicar en la web" -> CSV de la planilla de Google Sheets.
-    // Formato: https://docs.google.com/spreadsheets/d/e/<ID>/pub?output=csv
-    CSV_URL: '',
-    REFRESH_MS: 60000
+    CSV_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTAruYPjhEHOipPMtNM5Npv3PrJ6U_XwOUhXSeFjejQHWH9ky5E-cKBblL1XdgOrOfK7FFIdq7gmoHk/pub?gid=296832343&single=true&output=csv',
+    REFRESH_MS: 60000,
+    DIAS_ALERTA: 15
   };
 
-  // Datos de muestra usados solo si CONFIG.CSV_URL está vacío, para poder
-  // ver el tablero funcionando sin depender de una planilla real.
-  const DEMO_CSV = `OT Nº,Cliente,Tipo Origen,Cantidad,Descripción,Material,Mecanizado,Estado,Prioridad
-OT-2451,Metalúrgica del Sur,Según Plano,4,Anillo cónico rollado,Acero Especial,SI incluye mecanizado,Pendiente,Urgente
-OT-2451,Metalúrgica del Sur,Según Plano,12,Bujes de sujeción,Bronce,NO,Pendiente,Urgente
-OT-2452,Bombas Industriales SA,Según Modelo,2,Carcasa de bomba,Hierro Gris,NO,Moldeo,Normal
-OT-2452,Bombas Industriales SA,Según Modelo,2,Tapa lateral,Hierro Gris,SI incluye mecanizado,Colada,Normal
-OT-2452,Bombas Industriales SA,Según Modelo,8,Prisioneros,Acero Especial,NO,Moldeo,Normal
-OT-2453,Talleres Ñandutí,Según Muestra,1,Rueda dentada,Acero Especial,SI incluye mecanizado,Listo,Normal
-OT-2454,Fundiciones Guaraní,Según Muestra,6,Codo de escape,Hierro Gris,NO,Diseño,Urgente
-OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial,NO,Terminado,Normal`;
+  // Datos de muestra usados solo si la planilla real no responde, para poder
+  // ver el tablero funcionando. Incluye una OT totalmente Terminada (debe
+  // desaparecer del tablero) y una OT parcialmente Terminada (solo se le
+  // debe caer el ítem ya terminado, la tarjeta sigue mostrando el resto).
+  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material
+OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial
+OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,NO,Urgente,Diseño,Pendiente,12,Bujes de sujeción,Bronce
+OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,En Proceso,2,Carcasa de bomba,Hierro Gris
+OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,SI incluye mecanizado,Normal,Colada,En Proceso,2,Tapa lateral,Hierro Gris
+OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,En Proceso,8,Prisioneros,Acero Especial
+OT-3003,15/07/2026,Talleres Ñandutí,Según Muestra,SI incluye mecanizado,Normal,Mecanizado,En Proceso,1,Rueda dentada,Acero Especial
+OT-3004,10/07/2026,Fundiciones Guaraní,Según Muestra,NO,Urgente,Diseño,Pendiente,6,Codo de escape,Hierro Gris
+OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Mecanizado,Terminado,20,Eslabón de arado,Acero Especial
+OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proceso,5,Contrapesos,Hierro Gris`;
 
-  const COLUMNS = [
-    { id: 'diseno', title: 'Por Diseñar / Cargar', accent: 'text-slate-300 bg-slate-500/10 border-slate-500/30', statuses: ['pendiente', 'diseno'] },
-    { id: 'planta', title: 'Planta (Moldeo/Colada)', accent: 'text-rvh-ember bg-rvh-ember/10 border-rvh-ember/30', statuses: ['moldeo', 'colada'] },
-    { id: 'listo', title: 'Listo para Entrega', accent: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30', statuses: ['listo', 'terminado'] }
+  // Paleta de acentos para las columnas del Kanban. Las columnas ya no son
+  // fijas: se generan a partir de los valores distintos de "Fase de
+  // Producción" que aparezcan en la planilla, en el orden en que se
+  // encuentran por primera vez, y se les asigna un color de esta lista.
+  const COLUMN_ACCENTS = [
+    'text-slate-300 bg-slate-500/10 border-slate-500/30',
+    'text-rvh-ember bg-rvh-ember/10 border-rvh-ember/30',
+    'text-rvh-steel bg-rvh-steel/10 border-rvh-steel/30',
+    'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+    'text-violet-400 bg-violet-500/10 border-violet-500/30',
+    'text-amber-400 bg-amber-500/10 border-amber-500/30'
   ];
-  // Orden de avance de un ítem: usado para ubicar la OT en la columna del
-  // ítem menos avanzado (la OT no pasa de columna hasta que todos sus
-  // ítems alcancen esa etapa).
-  const STATUS_RANK = ['pendiente', 'diseno', 'moldeo', 'colada', 'listo', 'terminado'];
+
+  function gridColsClass(n) {
+    if (n <= 1) return 'grid-cols-1';
+    if (n === 2) return 'grid-cols-1 md:grid-cols-2';
+    if (n === 3) return 'grid-cols-1 lg:grid-cols-3';
+    return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4';
+  }
 
   // ---------------------------------------------------------------------
   // DOM refs
@@ -143,6 +155,7 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
   };
 
   let allOrders = [];
+  let phaseColumns = [];
   let refreshTimer = null;
 
   // ---------------------------------------------------------------------
@@ -169,6 +182,19 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
 
   function isUrgent(value) {
     return normalize(value).includes('urgente');
+  }
+
+  function parseDDMMYYYY(value) {
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec((value || '').trim());
+    if (!m) return null;
+    const date = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function daysSince(date) {
+    const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffMs = startOfDay(new Date()) - startOfDay(date);
+    return Math.round(diffMs / 86400000);
   }
 
   // ---------------------------------------------------------------------
@@ -207,20 +233,34 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
   }
 
   // ---------------------------------------------------------------------
-  // Group flat CSV rows into one Kanban card per "OT Nº"
+  // Group flat CSV rows into one Kanban card per "OT". Rows already
+  // marked "Terminado" in Status Final are dropped before grouping, so a
+  // fully-finished OT disappears entirely and a partially-finished OT
+  // just loses that item from its list.
   // ---------------------------------------------------------------------
   function groupOrdersByOT(rows) {
-    const map = new Map();
+    const activeRows = rows.filter(row => normalize(row['Status Final']) !== 'terminado');
 
-    rows.forEach(row => {
-      const otNumber = row['OT Nº'] || row['OT N°'] || row['OT No'] || '';
+    // Las columnas del Kanban se derivan de los valores de "Fase de
+    // Producción" tal como aparecen en la planilla, en orden de primera
+    // aparición.
+    const phaseOrder = [];
+    activeRows.forEach(row => {
+      const phase = (row['Fase de Producción'] || row['Fase de Produccion'] || '').trim();
+      if (phase && !phaseOrder.includes(phase)) phaseOrder.push(phase);
+    });
+
+    const map = new Map();
+    activeRows.forEach(row => {
+      const otNumber = row['OT'] || '';
       if (!otNumber.trim()) return;
 
       if (!map.has(otNumber)) {
         map.set(otNumber, {
           otNumber,
           cliente: row['Cliente'] || 'Sin cliente',
-          tipoOrigenSet: new Set(),
+          tipoSet: new Set(),
+          fechaIngreso: null,
           urgent: false,
           machining: false,
           items: []
@@ -228,36 +268,43 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
       }
 
       const order = map.get(otNumber);
-      if (row['Tipo Origen']) order.tipoOrigenSet.add(row['Tipo Origen']);
+      if (row['Tipo']) order.tipoSet.add(row['Tipo']);
       if (isUrgent(row['Prioridad'])) order.urgent = true;
       if (isAffirmative(row['Mecanizado'])) order.machining = true;
+      if (!order.fechaIngreso) order.fechaIngreso = parseDDMMYYYY(row['Fecha Ingreso']);
 
       order.items.push({
         cantidad: row['Cantidad'] || '',
         descripcion: row['Descripción'] || row['Descripcion'] || '',
         material: row['Material'] || '',
-        estado: row['Estado'] || ''
+        fase: (row['Fase de Producción'] || row['Fase de Produccion'] || '').trim()
       });
     });
 
-    return Array.from(map.values()).map(order => {
+    const orders = Array.from(map.values()).map(order => {
+      // La OT se ubica en la columna de su ítem menos avanzado (cuello de
+      // botella): no pasa a la siguiente fase hasta que todos los ítems
+      // lleguen a ella.
       const ranks = order.items.map(i => {
-        const idx = STATUS_RANK.indexOf(normalize(i.estado));
+        const idx = phaseOrder.indexOf(i.fase);
         return idx === -1 ? 0 : idx;
       });
       const bottleneckRank = ranks.length ? Math.min(...ranks) : 0;
-      const bottleneckStatus = STATUS_RANK[bottleneckRank];
 
       return {
         otNumber: order.otNumber,
         cliente: order.cliente,
-        tipoOrigen: Array.from(order.tipoOrigenSet).filter(Boolean).join(' / ') || 'N/D',
+        tipoOrigen: Array.from(order.tipoSet).filter(Boolean).join(' / ') || 'N/D',
         urgent: order.urgent,
         machining: order.machining,
         items: order.items,
-        columnId: COLUMNS.find(col => col.statuses.includes(bottleneckStatus))?.id || COLUMNS[0].id
+        diasEnProceso: order.fechaIngreso ? daysSince(order.fechaIngreso) : null,
+        columnId: phaseOrder[bottleneckRank] || 'Sin Fase'
       };
     });
+
+    if (!phaseOrder.length) phaseOrder.push('Sin Fase');
+    return { orders, phaseOrder };
   }
 
   // ---------------------------------------------------------------------
@@ -320,6 +367,13 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
         ? badge('Mecanizado: SI', 'text-amber-400 bg-amber-500/10 border-amber-500/30')
         : badge('Sin mecanizado', 'text-slate-400 bg-slate-500/10 border-slate-600/30')
     );
+    if (order.diasEnProceso !== null) {
+      const isStale = order.diasEnProceso > CONFIG.DIAS_ALERTA;
+      badges.appendChild(badge(
+        `⏱️ Lleva ${order.diasEnProceso} días`,
+        isStale ? 'text-red-400 bg-red-500/10 border-red-500/40' : 'text-slate-400 bg-slate-500/10 border-slate-600/30'
+      ));
+    }
     card.appendChild(badges);
 
     // Items table
@@ -369,9 +423,11 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
 
   function renderBoard(orders) {
     el.board.innerHTML = '';
+    el.board.className = `grid gap-5 ${gridColsClass(phaseColumns.length)}`;
 
-    COLUMNS.forEach(col => {
-      const colOrders = orders.filter(o => o.columnId === col.id);
+    phaseColumns.forEach((phase, idx) => {
+      const accent = COLUMN_ACCENTS[idx % COLUMN_ACCENTS.length];
+      const colOrders = orders.filter(o => o.columnId === phase);
 
       const colEl = document.createElement('section');
       colEl.className = 'bg-rvh-panel border border-rvh-border rounded-2xl flex flex-col min-h-[200px]';
@@ -380,9 +436,9 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
       colHeader.className = 'flex items-center justify-between px-4 py-3 border-b border-rvh-border';
       const colTitle = document.createElement('h2');
       colTitle.className = 'font-bold text-sm text-white';
-      colTitle.textContent = col.title;
+      colTitle.textContent = phase;
       const colCount = document.createElement('span');
-      colCount.className = `px-2 py-0.5 rounded-full text-xs font-bold border ${col.accent}`;
+      colCount.className = `px-2 py-0.5 rounded-full text-xs font-bold border ${accent}`;
       colCount.textContent = colOrders.length;
       colHeader.append(colTitle, colCount);
       colEl.appendChild(colHeader);
@@ -426,11 +482,11 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
     const time = now.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' });
     el.statusBar.innerHTML = '';
     const dot = document.createElement('span');
-    dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block';
+    dot.className = `w-1.5 h-1.5 rounded-full inline-block ${usingDemo ? 'bg-amber-400' : 'bg-emerald-400'}`;
     el.statusBar.appendChild(dot);
     const text = document.createElement('span');
     text.textContent = usingDemo
-      ? `Modo demostración (configurá CONFIG.CSV_URL) · Actualizado ${time}`
+      ? `Modo demostración (sin conexión a la planilla) · Actualizado ${time}`
       : `Datos en vivo · Actualizado ${time}`;
     el.statusBar.appendChild(text);
   }
@@ -451,18 +507,26 @@ OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial
     }
     el.refreshIcon.classList.add('animate-spin');
 
+    let usingDemo = false;
     try {
-      const usingDemo = !CONFIG.CSV_URL;
-      const text = usingDemo ? DEMO_CSV : await fetchCSVText(CONFIG.CSV_URL);
-      const rows = parseCSV(text);
-      allOrders = groupOrdersByOT(rows);
-
+      const text = await fetchCSVText(CONFIG.CSV_URL);
+      const result = groupOrdersByOT(parseCSV(text));
+      allOrders = result.orders;
+      phaseColumns = result.phaseOrder;
       hideError();
-      refreshView();
-      setStatusBar(usingDemo);
     } catch (err) {
+      // Si todavía no hay nada en pantalla, mostramos datos de muestra para
+      // que el tablero no quede vacío mientras se resuelve la conexión.
+      if (allOrders.length === 0) {
+        const demoResult = groupOrdersByOT(parseCSV(DEMO_CSV));
+        allOrders = demoResult.orders;
+        phaseColumns = demoResult.phaseOrder;
+        usingDemo = true;
+      }
       showError(err.message || 'Error al cargar los datos.');
     } finally {
+      refreshView();
+      setStatusBar(usingDemo);
       el.loading.classList.add('hidden');
       el.board.classList.remove('hidden');
       el.refreshIcon.classList.remove('animate-spin');
