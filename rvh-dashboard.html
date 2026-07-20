@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RVH Fundición | Panel de Producción</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          rvh: { bg: '#0b0f16', panel: '#121826', card: '#171f2e', border: '#232d40', ember: '#f97316', steel: '#38bdf8' }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a3549; border-radius: 8px; }
+  .urgent-card {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 1px rgba(239,68,68,.4), 0 8px 24px -8px rgba(239,68,68,.35);
+    animation: pulse-urgent 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse-urgent {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(239,68,68,.4), 0 8px 24px -8px rgba(239,68,68,.35); }
+    50% { box-shadow: 0 0 0 1px rgba(239,68,68,.7), 0 8px 30px -6px rgba(239,68,68,.55); }
+  }
+  .card-enter { animation: card-in .25s ease-out; }
+  @keyframes card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .spinner { border: 3px solid #232d40; border-top-color: #f97316; border-radius: 50%; width: 28px; height: 28px; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body class="bg-rvh-bg text-slate-200 min-h-screen">
+
+  <header class="sticky top-0 z-20 bg-rvh-panel/95 backdrop-blur border-b border-rvh-border">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-xl bg-rvh-ember/10 border border-rvh-ember/30 flex items-center justify-center text-rvh-ember font-black text-lg">RVH</div>
+        <div>
+          <h1 class="text-lg font-bold text-white leading-tight">Panel de Producción</h1>
+          <p class="text-xs text-slate-400">RVH Fundición &middot; Órdenes de Trabajo en tiempo real</p>
+        </div>
+      </div>
+
+      <div class="flex flex-1 md:flex-none items-center gap-3 md:max-w-md">
+        <div class="relative flex-1">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+          </svg>
+          <input id="search-input" type="text" placeholder="Buscar por OT, cliente o descripción..."
+            class="w-full bg-rvh-card border border-rvh-border rounded-xl py-2.5 pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-rvh-steel/50 placeholder:text-slate-500">
+          <button id="clear-search" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <button id="refresh-btn" title="Actualizar ahora"
+          class="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-rvh-card border border-rvh-border hover:border-rvh-steel/60 hover:text-rvh-steel transition">
+          <svg id="refresh-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114.9-3.4M20 15a8 8 0 01-14.9 3.4" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="status-bar" class="max-w-[1600px] mx-auto px-4 md:px-6 pb-3 text-xs text-slate-500 flex items-center gap-2"></div>
+  </header>
+
+  <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6">
+
+    <div id="error-banner" class="hidden mb-4 bg-red-500/10 border border-red-500/30 text-red-300 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+      <span id="error-text"></span>
+      <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-200">Reintentar</button>
+    </div>
+
+    <div id="loading-state" class="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+      <div class="spinner"></div>
+      <p class="text-sm">Cargando órdenes de trabajo...</p>
+    </div>
+
+    <div id="board" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-5"></div>
+
+    <div id="empty-state" class="hidden text-center py-24 text-slate-500">
+      <p class="text-lg font-bold text-slate-300">No se encontraron órdenes</p>
+      <p class="text-sm mt-1">Probá con otro término de búsqueda.</p>
+    </div>
+  </main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------
+  // CONFIG
+  // ---------------------------------------------------------------------
+  const CONFIG = {
+    // Reemplazar con el link "Publicar en la web" -> CSV de la planilla de Google Sheets.
+    // Formato: https://docs.google.com/spreadsheets/d/e/<ID>/pub?output=csv
+    CSV_URL: '',
+    REFRESH_MS: 60000
+  };
+
+  // Datos de muestra usados solo si CONFIG.CSV_URL está vacío, para poder
+  // ver el tablero funcionando sin depender de una planilla real.
+  const DEMO_CSV = `OT Nº,Cliente,Tipo Origen,Cantidad,Descripción,Material,Mecanizado,Estado,Prioridad
+OT-2451,Metalúrgica del Sur,Según Plano,4,Anillo cónico rollado,Acero Especial,SI incluye mecanizado,Pendiente,Urgente
+OT-2451,Metalúrgica del Sur,Según Plano,12,Bujes de sujeción,Bronce,NO,Pendiente,Urgente
+OT-2452,Bombas Industriales SA,Según Modelo,2,Carcasa de bomba,Hierro Gris,NO,Moldeo,Normal
+OT-2452,Bombas Industriales SA,Según Modelo,2,Tapa lateral,Hierro Gris,SI incluye mecanizado,Colada,Normal
+OT-2452,Bombas Industriales SA,Según Modelo,8,Prisioneros,Acero Especial,NO,Moldeo,Normal
+OT-2453,Talleres Ñandutí,Según Muestra,1,Rueda dentada,Acero Especial,SI incluye mecanizado,Listo,Normal
+OT-2454,Fundiciones Guaraní,Según Muestra,6,Codo de escape,Hierro Gris,NO,Diseño,Urgente
+OT-2455,Agro Repuestos Paraguay,Según Plano,20,Eslabón de arado,Acero Especial,NO,Terminado,Normal`;
+
+  const COLUMNS = [
+    { id: 'diseno', title: 'Por Diseñar / Cargar', accent: 'text-slate-300 bg-slate-500/10 border-slate-500/30', statuses: ['pendiente', 'diseno'] },
+    { id: 'planta', title: 'Planta (Moldeo/Colada)', accent: 'text-rvh-ember bg-rvh-ember/10 border-rvh-ember/30', statuses: ['moldeo', 'colada'] },
+    { id: 'listo', title: 'Listo para Entrega', accent: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30', statuses: ['listo', 'terminado'] }
+  ];
+  // Orden de avance de un ítem: usado para ubicar la OT en la columna del
+  // ítem menos avanzado (la OT no pasa de columna hasta que todos sus
+  // ítems alcancen esa etapa).
+  const STATUS_RANK = ['pendiente', 'diseno', 'moldeo', 'colada', 'listo', 'terminado'];
+
+  // ---------------------------------------------------------------------
+  // DOM refs
+  // ---------------------------------------------------------------------
+  const el = {
+    board: document.getElementById('board'),
+    loading: document.getElementById('loading-state'),
+    empty: document.getElementById('empty-state'),
+    errorBanner: document.getElementById('error-banner'),
+    errorText: document.getElementById('error-text'),
+    errorRetry: document.getElementById('error-retry'),
+    search: document.getElementById('search-input'),
+    clearSearch: document.getElementById('clear-search'),
+    refreshBtn: document.getElementById('refresh-btn'),
+    refreshIcon: document.getElementById('refresh-icon'),
+    statusBar: document.getElementById('status-bar')
+  };
+
+  let allOrders = [];
+  let refreshTimer = null;
+
+  // ---------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------
+  function normalize(str) {
+    return (str || '')
+      .toString()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+      .toLowerCase();
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
+  function isAffirmative(value) {
+    const n = normalize(value);
+    return n.startsWith('si') || n === 'true' || n === '1' || n === 'yes';
+  }
+
+  function isUrgent(value) {
+    return normalize(value).includes('urgente');
+  }
+
+  // ---------------------------------------------------------------------
+  // CSV parsing (RFC4180-ish: handles quoted fields, embedded commas/newlines)
+  // ---------------------------------------------------------------------
+  function parseCSV(text) {
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM (Google Sheets export)
+
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i], next = text[i + 1];
+      if (inQuotes) {
+        if (c === '"' && next === '"') { field += '"'; i++; }
+        else if (c === '"') { inQuotes = false; }
+        else { field += c; }
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ',') { row.push(field); field = ''; }
+        else if (c === '\r') { /* ignore, \n handles the break */ }
+        else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+        else field += c;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+
+    const headers = (rows.shift() || []).map(h => h.trim());
+    return rows
+      .filter(r => r.some(v => v.trim() !== ''))
+      .map(r => {
+        const obj = {};
+        headers.forEach((h, idx) => { obj[h] = (r[idx] ?? '').trim(); });
+        return obj;
+      });
+  }
+
+  // ---------------------------------------------------------------------
+  // Group flat CSV rows into one Kanban card per "OT Nº"
+  // ---------------------------------------------------------------------
+  function groupOrdersByOT(rows) {
+    const map = new Map();
+
+    rows.forEach(row => {
+      const otNumber = row['OT Nº'] || row['OT N°'] || row['OT No'] || '';
+      if (!otNumber.trim()) return;
+
+      if (!map.has(otNumber)) {
+        map.set(otNumber, {
+          otNumber,
+          cliente: row['Cliente'] || 'Sin cliente',
+          tipoOrigenSet: new Set(),
+          urgent: false,
+          machining: false,
+          items: []
+        });
+      }
+
+      const order = map.get(otNumber);
+      if (row['Tipo Origen']) order.tipoOrigenSet.add(row['Tipo Origen']);
+      if (isUrgent(row['Prioridad'])) order.urgent = true;
+      if (isAffirmative(row['Mecanizado'])) order.machining = true;
+
+      order.items.push({
+        cantidad: row['Cantidad'] || '',
+        descripcion: row['Descripción'] || row['Descripcion'] || '',
+        material: row['Material'] || '',
+        estado: row['Estado'] || ''
+      });
+    });
+
+    return Array.from(map.values()).map(order => {
+      const ranks = order.items.map(i => {
+        const idx = STATUS_RANK.indexOf(normalize(i.estado));
+        return idx === -1 ? 0 : idx;
+      });
+      const bottleneckRank = ranks.length ? Math.min(...ranks) : 0;
+      const bottleneckStatus = STATUS_RANK[bottleneckRank];
+
+      return {
+        otNumber: order.otNumber,
+        cliente: order.cliente,
+        tipoOrigen: Array.from(order.tipoOrigenSet).filter(Boolean).join(' / ') || 'N/D',
+        urgent: order.urgent,
+        machining: order.machining,
+        items: order.items,
+        columnId: COLUMNS.find(col => col.statuses.includes(bottleneckStatus))?.id || COLUMNS[0].id
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Search / filter
+  // ---------------------------------------------------------------------
+  function getFilteredOrders() {
+    const q = normalize(el.search.value);
+    if (!q) return allOrders;
+    return allOrders.filter(order => {
+      const haystack = normalize([
+        order.otNumber,
+        order.cliente,
+        ...order.items.map(i => i.descripcion)
+      ].join(' '));
+      return haystack.includes(q);
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------
+  function badge(text, classes) {
+    const span = document.createElement('span');
+    span.className = `inline-flex items-center px-2 py-1 rounded-md text-[11px] font-bold border ${classes}`;
+    span.textContent = text;
+    return span;
+  }
+
+  function buildCard(order) {
+    const card = document.createElement('article');
+    card.className = `card-enter bg-rvh-card border border-rvh-border rounded-2xl p-4 flex flex-col gap-3 ${order.urgent ? 'urgent-card' : ''}`;
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'flex items-start justify-between gap-2';
+    const headerLeft = document.createElement('div');
+    const otLine = document.createElement('h3');
+    otLine.className = 'font-black text-white text-base leading-tight';
+    otLine.textContent = order.otNumber;
+    const clientLine = document.createElement('p');
+    clientLine.className = 'text-xs text-slate-400 font-medium mt-0.5';
+    clientLine.textContent = order.cliente;
+    headerLeft.append(otLine, clientLine);
+    header.appendChild(headerLeft);
+
+    if (order.urgent) {
+      const flag = document.createElement('span');
+      flag.className = 'shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-red-500/15 text-red-400 border border-red-500/40';
+      flag.textContent = '⚠ URGENTE';
+      header.appendChild(flag);
+    }
+    card.appendChild(header);
+
+    // Badges
+    const badges = document.createElement('div');
+    badges.className = 'flex flex-wrap gap-1.5';
+    badges.appendChild(badge(order.tipoOrigen, 'text-rvh-steel bg-rvh-steel/10 border-rvh-steel/30'));
+    badges.appendChild(
+      order.machining
+        ? badge('Mecanizado: SI', 'text-amber-400 bg-amber-500/10 border-amber-500/30')
+        : badge('Sin mecanizado', 'text-slate-400 bg-slate-500/10 border-slate-600/30')
+    );
+    card.appendChild(badges);
+
+    // Items table
+    const itemsWrap = document.createElement('div');
+    itemsWrap.className = 'bg-rvh-panel/60 border border-rvh-border rounded-xl overflow-hidden';
+
+    const itemsHeader = document.createElement('div');
+    itemsHeader.className = 'grid grid-cols-[2.5rem_1fr_5.5rem] gap-2 px-3 py-1.5 text-[10px] font-bold uppercase text-slate-500 border-b border-rvh-border';
+    ['Cant.', 'Descripción', 'Material'].forEach(t => {
+      const s = document.createElement('span');
+      s.textContent = t;
+      itemsHeader.appendChild(s);
+    });
+    itemsWrap.appendChild(itemsHeader);
+
+    order.items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'grid grid-cols-[2.5rem_1fr_5.5rem] gap-2 px-3 py-1.5 text-xs border-b border-rvh-border/60 last:border-b-0';
+
+      const cant = document.createElement('span');
+      cant.className = 'font-bold text-slate-200';
+      cant.textContent = item.cantidad;
+
+      const desc = document.createElement('span');
+      desc.className = 'text-slate-300 truncate';
+      desc.title = item.descripcion;
+      desc.textContent = item.descripcion;
+
+      const mat = document.createElement('span');
+      mat.className = 'text-slate-400 truncate';
+      mat.title = item.material;
+      mat.textContent = item.material;
+
+      row.append(cant, desc, mat);
+      itemsWrap.appendChild(row);
+    });
+
+    card.appendChild(itemsWrap);
+
+    const footer = document.createElement('p');
+    footer.className = 'text-[11px] text-slate-500 font-medium';
+    footer.textContent = `${order.items.length} ${order.items.length === 1 ? 'ítem' : 'ítems'} en esta OT`;
+    card.appendChild(footer);
+
+    return card;
+  }
+
+  function renderBoard(orders) {
+    el.board.innerHTML = '';
+
+    COLUMNS.forEach(col => {
+      const colOrders = orders.filter(o => o.columnId === col.id);
+
+      const colEl = document.createElement('section');
+      colEl.className = 'bg-rvh-panel border border-rvh-border rounded-2xl flex flex-col min-h-[200px]';
+
+      const colHeader = document.createElement('div');
+      colHeader.className = 'flex items-center justify-between px-4 py-3 border-b border-rvh-border';
+      const colTitle = document.createElement('h2');
+      colTitle.className = 'font-bold text-sm text-white';
+      colTitle.textContent = col.title;
+      const colCount = document.createElement('span');
+      colCount.className = `px-2 py-0.5 rounded-full text-xs font-bold border ${col.accent}`;
+      colCount.textContent = colOrders.length;
+      colHeader.append(colTitle, colCount);
+      colEl.appendChild(colHeader);
+
+      const colBody = document.createElement('div');
+      colBody.className = 'flex-1 p-3 flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-220px)]';
+
+      if (colOrders.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'text-center text-xs text-slate-600 py-8';
+        empty.textContent = 'Sin órdenes en esta etapa';
+        colBody.appendChild(empty);
+      } else {
+        colOrders.forEach(order => colBody.appendChild(buildCard(order)));
+      }
+
+      colEl.appendChild(colBody);
+      el.board.appendChild(colEl);
+    });
+
+    const totalVisible = orders.length;
+    el.board.classList.toggle('hidden', totalVisible === 0);
+    el.empty.classList.toggle('hidden', totalVisible !== 0);
+  }
+
+  function refreshView() {
+    renderBoard(getFilteredOrders());
+  }
+
+  // ---------------------------------------------------------------------
+  // Data loading
+  // ---------------------------------------------------------------------
+  async function fetchCSVText(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`No se pudo obtener la planilla (HTTP ${res.status})`);
+    return res.text();
+  }
+
+  function setStatusBar(usingDemo) {
+    const now = new Date();
+    const time = now.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' });
+    el.statusBar.innerHTML = '';
+    const dot = document.createElement('span');
+    dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block';
+    el.statusBar.appendChild(dot);
+    const text = document.createElement('span');
+    text.textContent = usingDemo
+      ? `Modo demostración (configurá CONFIG.CSV_URL) · Actualizado ${time}`
+      : `Datos en vivo · Actualizado ${time}`;
+    el.statusBar.appendChild(text);
+  }
+
+  function showError(message) {
+    el.errorText.textContent = message;
+    el.errorBanner.classList.remove('hidden');
+  }
+  function hideError() {
+    el.errorBanner.classList.add('hidden');
+  }
+
+  async function loadData({ silent } = {}) {
+    if (!silent) {
+      el.loading.classList.remove('hidden');
+      el.board.classList.add('hidden');
+      el.empty.classList.add('hidden');
+    }
+    el.refreshIcon.classList.add('animate-spin');
+
+    try {
+      const usingDemo = !CONFIG.CSV_URL;
+      const text = usingDemo ? DEMO_CSV : await fetchCSVText(CONFIG.CSV_URL);
+      const rows = parseCSV(text);
+      allOrders = groupOrdersByOT(rows);
+
+      hideError();
+      refreshView();
+      setStatusBar(usingDemo);
+    } catch (err) {
+      showError(err.message || 'Error al cargar los datos.');
+    } finally {
+      el.loading.classList.add('hidden');
+      el.board.classList.remove('hidden');
+      el.refreshIcon.classList.remove('animate-spin');
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Events
+  // ---------------------------------------------------------------------
+  el.search.addEventListener('input', debounce(() => {
+    el.clearSearch.classList.toggle('hidden', el.search.value.trim() === '');
+    refreshView();
+  }, 150));
+
+  el.clearSearch.addEventListener('click', () => {
+    el.search.value = '';
+    el.clearSearch.classList.add('hidden');
+    refreshView();
+    el.search.focus();
+  });
+
+  el.refreshBtn.addEventListener('click', () => loadData());
+  el.errorRetry.addEventListener('click', () => loadData());
+
+  // ---------------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------------
+  loadData();
+  refreshTimer = setInterval(() => loadData({ silent: true }), CONFIG.REFRESH_MS);
+})();
+</script>
+</body>
+</html>
