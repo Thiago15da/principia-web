@@ -261,7 +261,6 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
           fechaIngresoDate: parseDDMMYYYY(row['Fecha Ingreso']),
           statusFinal: row['Status Final'] || '',
           tipoSet: new Set(),
-          faseSet: new Set(),
           urgent: false,
           machining: false,
           items: []
@@ -272,8 +271,6 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       if (row['Tipo']) order.tipoSet.add(row['Tipo']);
       if (isUrgent(row['Prioridad'])) order.urgent = true;
       if (isAffirmative(row['Mecanizado'])) order.machining = true;
-      const fase = (row['Fase de Producción'] || row['Fase de Produccion'] || '').trim();
-      if (fase) order.faseSet.add(fase);
 
       order.items.push({
         cantidad: row['Cantidad'] || '',
@@ -286,7 +283,6 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       otNumber: order.otNumber,
       cliente: order.cliente,
       tipoOrigen: Array.from(order.tipoSet).filter(Boolean).join(' / ') || 'N/D',
-      fases: Array.from(order.faseSet),
       urgent: order.urgent,
       machining: order.machining,
       items: order.items,
@@ -429,10 +425,6 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
         isStale ? 'text-red-700 bg-red-50 border-red-300' : 'text-slate-500 bg-slate-50 border-slate-200'
       ));
     }
-    // Fase de Producción: subtle tags, one per distinct phase found among items.
-    order.fases.forEach(fase => {
-      badges.appendChild(badge(fase, 'text-slate-400 bg-slate-50 border-slate-200 font-semibold normal-case'));
-    });
     body.appendChild(badges);
 
     // Items table
