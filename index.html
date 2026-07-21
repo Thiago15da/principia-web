@@ -257,7 +257,8 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
         map.set(otNumber, {
           otNumber,
           cliente: row['Cliente'] || 'Sin cliente',
-          fechaIngreso: parseDDMMYYYY(row['Fecha Ingreso']),
+          fechaIngresoRaw: (row['Fecha Ingreso'] || '').trim(),
+          fechaIngresoDate: parseDDMMYYYY(row['Fecha Ingreso']),
           statusFinal: row['Status Final'] || '',
           tipoSet: new Set(),
           faseSet: new Set(),
@@ -289,7 +290,8 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       urgent: order.urgent,
       machining: order.machining,
       items: order.items,
-      diasEnProceso: order.fechaIngreso ? daysSince(order.fechaIngreso) : null,
+      fechaIngreso: order.fechaIngresoRaw,
+      diasEnProceso: order.fechaIngresoDate ? daysSince(order.fechaIngresoDate) : null,
       bucket: normalize(order.statusFinal) === 'terminado' ? 'terminado' : 'pendiente'
     }));
   }
@@ -392,6 +394,12 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     clientLine.className = 'text-xs text-slate-300 font-medium mt-0.5';
     clientLine.textContent = order.cliente;
     headerLeft.append(otLine, clientLine);
+    if (order.fechaIngreso) {
+      const dateLine = document.createElement('p');
+      dateLine.className = 'text-[11px] text-slate-400 font-medium mt-0.5';
+      dateLine.textContent = `📅 Ingreso: ${order.fechaIngreso}`;
+      headerLeft.appendChild(dateLine);
+    }
     header.appendChild(headerLeft);
 
     if (order.urgent) {
