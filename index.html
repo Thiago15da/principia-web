@@ -3,14 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RVH Fundición | Panel de Producción</title>
+<title>RVH Fundición | Control de Producción</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
     theme: {
       extend: {
         colors: {
-          rvh: { bg: '#0b0f16', panel: '#121826', card: '#171f2e', border: '#232d40', ember: '#f97316', steel: '#38bdf8' }
+          rvh: {
+            bg: '#f1f5f9',
+            navy: '#0f2942',
+            navyLight: '#1e3a8a',
+            steel: '#475569',
+            amber: '#d97706',
+            border: '#e2e8f0'
+          }
         }
       }
     }
@@ -19,73 +26,68 @@
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: #2a3549; border-radius: 8px; }
-  .urgent-card {
-    border-color: #ef4444 !important;
-    box-shadow: 0 0 0 1px rgba(239,68,68,.4), 0 8px 24px -8px rgba(239,68,68,.35);
-    animation: pulse-urgent 2.2s ease-in-out infinite;
-  }
-  @keyframes pulse-urgent {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(239,68,68,.4), 0 8px 24px -8px rgba(239,68,68,.35); }
-    50% { box-shadow: 0 0 0 1px rgba(239,68,68,.7), 0 8px 30px -6px rgba(239,68,68,.55); }
-  }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
   .card-enter { animation: card-in .25s ease-out; }
   @keyframes card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-  .spinner { border: 3px solid #232d40; border-top-color: #f97316; border-radius: 50%; width: 28px; height: 28px; animation: spin .8s linear infinite; }
+  .spinner { border: 3px solid #e2e8f0; border-top-color: #d97706; border-radius: 50%; width: 28px; height: 28px; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
-<body class="bg-rvh-bg text-slate-200 min-h-screen">
+<body class="bg-rvh-bg text-slate-800 min-h-screen">
 
-  <header class="sticky top-0 z-20 bg-rvh-panel/95 backdrop-blur border-b border-rvh-border">
+  <header class="sticky top-0 z-20 bg-rvh-navy text-white shadow-md">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-11 h-11 rounded-xl bg-rvh-ember/10 border border-rvh-ember/30 flex items-center justify-center text-rvh-ember font-black text-lg">RVH</div>
+        <div class="w-11 h-11 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center font-black text-lg">RVH</div>
         <div>
-          <h1 class="text-lg font-bold text-white leading-tight">Panel de Producción</h1>
-          <p class="text-xs text-slate-400">RVH Fundición &middot; Órdenes de Trabajo en tiempo real</p>
+          <h1 class="text-lg md:text-xl font-bold leading-tight">RVH Fundición</h1>
+          <p class="text-xs text-slate-300 font-semibold uppercase tracking-wide">Control de Producción</p>
         </div>
       </div>
 
       <div class="flex flex-1 md:flex-none items-center gap-3 md:max-w-md">
         <div class="relative flex-1">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
           </svg>
           <input id="search-input" type="text" placeholder="Buscar por OT, cliente o descripción..."
-            class="w-full bg-rvh-card border border-rvh-border rounded-xl py-2.5 pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-rvh-steel/50 placeholder:text-slate-500">
-          <button id="clear-search" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+            class="w-full bg-white text-slate-800 border border-white/20 rounded-lg py-2.5 pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-rvh-amber/60 placeholder:text-slate-400">
+          <button id="clear-search" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
         <button id="refresh-btn" title="Actualizar ahora"
-          class="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-rvh-card border border-rvh-border hover:border-rvh-steel/60 hover:text-rvh-steel transition">
+          class="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition">
           <svg id="refresh-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114.9-3.4M20 15a8 8 0 01-14.9 3.4" />
           </svg>
         </button>
       </div>
     </div>
-    <div id="status-bar" class="max-w-[1600px] mx-auto px-4 md:px-6 pb-3 text-xs text-slate-500 flex items-center gap-2"></div>
+    <div id="status-bar" class="max-w-[1600px] mx-auto px-4 md:px-6 pb-2.5 text-xs text-slate-300 flex items-center gap-2"></div>
   </header>
 
-  <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6">
+  <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-6">
 
-    <div id="error-banner" class="hidden mb-4 bg-red-500/10 border border-red-500/30 text-red-300 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+    <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
       <span id="error-text"></span>
-      <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-200">Reintentar</button>
+      <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-900">Reintentar</button>
     </div>
+
+    <div id="metrics" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+
+    <div id="tabs" class="flex flex-wrap gap-2"></div>
 
     <div id="loading-state" class="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
       <div class="spinner"></div>
       <p class="text-sm">Cargando órdenes de trabajo...</p>
     </div>
 
-    <div id="board" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-5"></div>
+    <div id="board" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
 
-    <div id="empty-state" class="hidden text-center py-24 text-slate-500">
-      <p class="text-lg font-bold text-slate-300">No se encontraron órdenes</p>
-      <p class="text-sm mt-1">Probá con otro término de búsqueda.</p>
+    <div id="empty-state" class="hidden text-center py-24 text-slate-400">
+      <p class="text-lg font-bold text-slate-500">No se encontraron órdenes</p>
+      <p class="text-sm mt-1">Probá con otro término de búsqueda o cambiá de sección.</p>
     </div>
   </main>
 
@@ -102,45 +104,33 @@
     DIAS_ALERTA: 15
   };
 
-  // Datos de muestra usados solo si la planilla real no responde, para poder
-  // ver el tablero funcionando. Incluye una OT totalmente Terminada (debe
-  // desaparecer del tablero) y una OT parcialmente Terminada (solo se le
-  // debe caer el ítem ya terminado, la tarjeta sigue mostrando el resto).
-  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material
-OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial
-OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,NO,Urgente,Diseño,Pendiente,12,Bujes de sujeción,Bronce
-OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,En Proceso,2,Carcasa de bomba,Hierro Gris
-OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,SI incluye mecanizado,Normal,Colada,En Proceso,2,Tapa lateral,Hierro Gris
-OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,En Proceso,8,Prisioneros,Acero Especial
-OT-3003,15/07/2026,Talleres Ñandutí,Según Muestra,SI incluye mecanizado,Normal,Mecanizado,En Proceso,1,Rueda dentada,Acero Especial
-OT-3004,10/07/2026,Fundiciones Guaraní,Según Muestra,NO,Urgente,Diseño,Pendiente,6,Codo de escape,Hierro Gris
-OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Mecanizado,Terminado,20,Eslabón de arado,Acero Especial
-OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proceso,5,Contrapesos,Hierro Gris`;
-
-  // Paleta de acentos para las columnas del Kanban. Las columnas ya no son
-  // fijas: se generan a partir de los valores distintos de "Fase de
-  // Producción" que aparezcan en la planilla, en el orden en que se
-  // encuentran por primera vez, y se les asigna un color de esta lista.
-  const COLUMN_ACCENTS = [
-    'text-slate-300 bg-slate-500/10 border-slate-500/30',
-    'text-rvh-ember bg-rvh-ember/10 border-rvh-ember/30',
-    'text-rvh-steel bg-rvh-steel/10 border-rvh-steel/30',
-    'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-    'text-violet-400 bg-violet-500/10 border-violet-500/30',
-    'text-amber-400 bg-amber-500/10 border-amber-500/30'
+  const TABS = [
+    { id: 'pendiente', label: '📋 Trabajos Pendientes / En Curso' },
+    { id: 'terminado', label: '✅ Trabajos Terminados' }
   ];
 
-  function gridColsClass(n) {
-    if (n <= 1) return 'grid-cols-1';
-    if (n === 2) return 'grid-cols-1 md:grid-cols-2';
-    if (n === 3) return 'grid-cols-1 lg:grid-cols-3';
-    return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4';
-  }
+  // Datos de muestra usados solo si la planilla real no responde. Incluye
+  // filas de continuación con OT/Cliente/Fecha Ingreso/Status Final en
+  // blanco, tal como las entrega la planilla real, para probar el
+  // "carry-over".
+  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material
+OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial
+,,,Según Plano,NO,Urgente,Diseño,,12,Bujes de sujeción,Bronce
+OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,Pendiente,2,Carcasa de bomba,Hierro Gris
+,,,Según Modelo,SI incluye mecanizado,Normal,Colada,,2,Tapa lateral,Hierro Gris
+,,,Según Modelo,NO,Normal,Moldeo,,8,Prisioneros,Acero Especial
+OT-3003,15/07/2026,Talleres Ñandutí,Según Muestra,SI incluye mecanizado,Normal,Mecanizado,Pendiente,1,Rueda dentada,Acero Especial
+OT-3004,10/07/2026,Fundiciones Guaraní,Según Muestra,NO,Urgente,Diseño,Pendiente,6,Codo de escape,Hierro Gris
+OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Mecanizado,Terminado,20,Eslabón de arado,Acero Especial
+,,,Según Plano,NO,Normal,Colada,,5,Contrapesos,Hierro Gris
+OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Normal,,Terminado,3,Bridas de acople,Bronce`;
 
   // ---------------------------------------------------------------------
   // DOM refs
   // ---------------------------------------------------------------------
   const el = {
+    metrics: document.getElementById('metrics'),
+    tabs: document.getElementById('tabs'),
     board: document.getElementById('board'),
     loading: document.getElementById('loading-state'),
     empty: document.getElementById('empty-state'),
@@ -155,7 +145,7 @@ OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proc
   };
 
   let allOrders = [];
-  let phaseColumns = [];
+  let activeTab = 'pendiente';
   let refreshTimer = null;
 
   // ---------------------------------------------------------------------
@@ -199,6 +189,7 @@ OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proc
 
   // ---------------------------------------------------------------------
   // CSV parsing (RFC4180-ish: handles quoted fields, embedded commas/newlines)
+  // Processes every row the sheet returns; no row cap.
   // ---------------------------------------------------------------------
   function parseCSV(text) {
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM (Google Sheets export)
@@ -232,35 +223,44 @@ OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proc
       });
   }
 
-  // ---------------------------------------------------------------------
-  // Group flat CSV rows into one Kanban card per "OT". Rows already
-  // marked "Terminado" in Status Final are dropped before grouping, so a
-  // fully-finished OT disappears entirely and a partially-finished OT
-  // just loses that item from its list.
-  // ---------------------------------------------------------------------
-  function groupOrdersByOT(rows) {
-    const activeRows = rows.filter(row => normalize(row['Status Final']) !== 'terminado');
-
-    // Las columnas del Kanban se derivan de los valores de "Fase de
-    // Producción" tal como aparecen en la planilla, en orden de primera
-    // aparición.
-    const phaseOrder = [];
-    activeRows.forEach(row => {
-      const phase = (row['Fase de Producción'] || row['Fase de Produccion'] || '').trim();
-      if (phase && !phaseOrder.includes(phase)) phaseOrder.push(phase);
+  // Google Sheets merges an OT's identity onto its first row only; item
+  // rows that follow leave OT/Cliente/Fecha Ingreso/Status Final blank.
+  // Fill those from the nearest row above that had them.
+  function applyCarryOver(rows) {
+    let lastOT = '', lastCliente = '', lastFecha = '', lastStatus = '';
+    return rows.map(row => {
+      if ((row['OT'] || '').trim()) {
+        lastOT = row['OT'];
+        lastCliente = row['Cliente'];
+        lastFecha = row['Fecha Ingreso'];
+        lastStatus = row['Status Final'];
+        return row;
+      }
+      return { ...row, OT: lastOT, Cliente: lastCliente, 'Fecha Ingreso': lastFecha, 'Status Final': lastStatus };
     });
+  }
 
+  // ---------------------------------------------------------------------
+  // Group flat CSV rows into one card per "OT". Each order is bucketed
+  // whole into "pendiente" (Pendiente / anything not finished) or
+  // "terminado" (Status Final === Terminado) — no per-item filtering.
+  // ---------------------------------------------------------------------
+  function groupOrders(rows) {
+    const filled = applyCarryOver(rows);
     const map = new Map();
-    activeRows.forEach(row => {
-      const otNumber = row['OT'] || '';
-      if (!otNumber.trim()) return;
+
+    filled.forEach(row => {
+      const otNumber = (row['OT'] || '').trim();
+      if (!otNumber) return;
 
       if (!map.has(otNumber)) {
         map.set(otNumber, {
           otNumber,
           cliente: row['Cliente'] || 'Sin cliente',
+          fechaIngreso: parseDDMMYYYY(row['Fecha Ingreso']),
+          statusFinal: row['Status Final'] || '',
           tipoSet: new Set(),
-          fechaIngreso: null,
+          faseSet: new Set(),
           urgent: false,
           machining: false,
           items: []
@@ -271,49 +271,91 @@ OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proc
       if (row['Tipo']) order.tipoSet.add(row['Tipo']);
       if (isUrgent(row['Prioridad'])) order.urgent = true;
       if (isAffirmative(row['Mecanizado'])) order.machining = true;
-      if (!order.fechaIngreso) order.fechaIngreso = parseDDMMYYYY(row['Fecha Ingreso']);
+      const fase = (row['Fase de Producción'] || row['Fase de Produccion'] || '').trim();
+      if (fase) order.faseSet.add(fase);
 
       order.items.push({
         cantidad: row['Cantidad'] || '',
         descripcion: row['Descripción'] || row['Descripcion'] || '',
-        material: row['Material'] || '',
-        fase: (row['Fase de Producción'] || row['Fase de Produccion'] || '').trim()
+        material: row['Material'] || ''
       });
     });
 
-    const orders = Array.from(map.values()).map(order => {
-      // La OT se ubica en la columna de su ítem menos avanzado (cuello de
-      // botella): no pasa a la siguiente fase hasta que todos los ítems
-      // lleguen a ella.
-      const ranks = order.items.map(i => {
-        const idx = phaseOrder.indexOf(i.fase);
-        return idx === -1 ? 0 : idx;
-      });
-      const bottleneckRank = ranks.length ? Math.min(...ranks) : 0;
+    return Array.from(map.values()).map(order => ({
+      otNumber: order.otNumber,
+      cliente: order.cliente,
+      tipoOrigen: Array.from(order.tipoSet).filter(Boolean).join(' / ') || 'N/D',
+      fases: Array.from(order.faseSet),
+      urgent: order.urgent,
+      machining: order.machining,
+      items: order.items,
+      diasEnProceso: order.fechaIngreso ? daysSince(order.fechaIngreso) : null,
+      bucket: normalize(order.statusFinal) === 'terminado' ? 'terminado' : 'pendiente'
+    }));
+  }
 
-      return {
-        otNumber: order.otNumber,
-        cliente: order.cliente,
-        tipoOrigen: Array.from(order.tipoSet).filter(Boolean).join(' / ') || 'N/D',
-        urgent: order.urgent,
-        machining: order.machining,
-        items: order.items,
-        diasEnProceso: order.fechaIngreso ? daysSince(order.fechaIngreso) : null,
-        columnId: phaseOrder[bottleneckRank] || 'Sin Fase'
-      };
+  // ---------------------------------------------------------------------
+  // Metrics + Tabs
+  // ---------------------------------------------------------------------
+  function renderMetrics() {
+    const total = allOrders.length;
+    const enCurso = allOrders.filter(o => o.bucket === 'pendiente').length;
+    const terminadas = allOrders.filter(o => o.bucket === 'terminado').length;
+    const alertas = allOrders.filter(o => o.bucket === 'pendiente' && o.diasEnProceso !== null && o.diasEnProceso > CONFIG.DIAS_ALERTA).length;
+
+    const tiles = [
+      { label: 'Total Órdenes', value: total, accent: 'text-rvh-navy' },
+      { label: 'En Curso', value: enCurso, accent: 'text-rvh-navyLight' },
+      { label: 'Terminadas', value: terminadas, accent: 'text-emerald-600' },
+      { label: `Alertas (> ${CONFIG.DIAS_ALERTA} días)`, value: alertas, accent: alertas > 0 ? 'text-red-600' : 'text-slate-400' }
+    ];
+
+    el.metrics.innerHTML = '';
+    tiles.forEach(m => {
+      const tile = document.createElement('div');
+      tile.className = 'bg-white border border-rvh-border rounded-xl shadow-sm px-4 py-3.5';
+      const label = document.createElement('p');
+      label.className = 'text-[11px] font-bold uppercase tracking-wide text-slate-400';
+      label.textContent = m.label;
+      const value = document.createElement('p');
+      value.className = `text-2xl font-black mt-1 ${m.accent}`;
+      value.textContent = m.value;
+      tile.append(label, value);
+      el.metrics.appendChild(tile);
     });
+  }
 
-    if (!phaseOrder.length) phaseOrder.push('Sin Fase');
-    return { orders, phaseOrder };
+  function renderTabs() {
+    el.tabs.innerHTML = '';
+    TABS.forEach(tab => {
+      const count = allOrders.filter(o => o.bucket === tab.id).length;
+      const isActive = tab.id === activeTab;
+
+      const btn = document.createElement('button');
+      btn.className = `px-4 py-2.5 rounded-lg text-sm font-bold border transition ${
+        isActive
+          ? 'bg-rvh-navy text-white border-rvh-navy shadow-sm'
+          : 'bg-white text-slate-600 border-rvh-border hover:border-rvh-navyLight hover:text-rvh-navyLight'
+      }`;
+      btn.textContent = `${tab.label} (${count})`;
+      btn.addEventListener('click', () => {
+        if (activeTab === tab.id) return;
+        activeTab = tab.id;
+        renderTabs();
+        refreshView();
+      });
+      el.tabs.appendChild(btn);
+    });
   }
 
   // ---------------------------------------------------------------------
   // Search / filter
   // ---------------------------------------------------------------------
   function getFilteredOrders() {
+    const bucketOrders = allOrders.filter(o => o.bucket === activeTab);
     const q = normalize(el.search.value);
-    if (!q) return allOrders;
-    return allOrders.filter(order => {
+    if (!q) return bucketOrders;
+    return bucketOrders.filter(order => {
       const haystack = normalize([
         order.otNumber,
         order.cliente,
@@ -335,53 +377,62 @@ OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proc
 
   function buildCard(order) {
     const card = document.createElement('article');
-    card.className = `card-enter bg-rvh-card border border-rvh-border rounded-2xl p-4 flex flex-col gap-3 ${order.urgent ? 'urgent-card' : ''}`;
+    card.className = `card-enter bg-white border rounded-xl shadow-sm overflow-hidden flex flex-col ${
+      order.urgent ? 'border-rvh-amber/70 ring-1 ring-rvh-amber/30' : 'border-rvh-border'
+    }`;
 
     // Header
     const header = document.createElement('div');
-    header.className = 'flex items-start justify-between gap-2';
+    header.className = 'bg-rvh-navy text-white px-4 py-3 flex items-start justify-between gap-2';
     const headerLeft = document.createElement('div');
     const otLine = document.createElement('h3');
-    otLine.className = 'font-black text-white text-base leading-tight';
+    otLine.className = 'font-black text-base leading-tight';
     otLine.textContent = order.otNumber;
     const clientLine = document.createElement('p');
-    clientLine.className = 'text-xs text-slate-400 font-medium mt-0.5';
+    clientLine.className = 'text-xs text-slate-300 font-medium mt-0.5';
     clientLine.textContent = order.cliente;
     headerLeft.append(otLine, clientLine);
     header.appendChild(headerLeft);
 
     if (order.urgent) {
       const flag = document.createElement('span');
-      flag.className = 'shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-red-500/15 text-red-400 border border-red-500/40';
+      flag.className = 'shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-rvh-amber text-white';
       flag.textContent = '⚠ URGENTE';
       header.appendChild(flag);
     }
     card.appendChild(header);
 
+    const body = document.createElement('div');
+    body.className = 'p-4 flex flex-col gap-3';
+
     // Badges
     const badges = document.createElement('div');
     badges.className = 'flex flex-wrap gap-1.5';
-    badges.appendChild(badge(order.tipoOrigen, 'text-rvh-steel bg-rvh-steel/10 border-rvh-steel/30'));
+    badges.appendChild(badge(order.tipoOrigen, 'text-rvh-steel bg-slate-100 border-slate-200'));
     badges.appendChild(
       order.machining
-        ? badge('Mecanizado: SI', 'text-amber-400 bg-amber-500/10 border-amber-500/30')
-        : badge('Sin mecanizado', 'text-slate-400 bg-slate-500/10 border-slate-600/30')
+        ? badge('Mecanizado: SI', 'text-rvh-amber bg-amber-50 border-amber-200')
+        : badge('Sin mecanizado', 'text-slate-400 bg-slate-50 border-slate-200')
     );
     if (order.diasEnProceso !== null) {
       const isStale = order.diasEnProceso > CONFIG.DIAS_ALERTA;
       badges.appendChild(badge(
-        `⏱️ Lleva ${order.diasEnProceso} días`,
-        isStale ? 'text-red-400 bg-red-500/10 border-red-500/40' : 'text-slate-400 bg-slate-500/10 border-slate-600/30'
+        `⏱️ ${order.diasEnProceso} días en taller`,
+        isStale ? 'text-red-700 bg-red-50 border-red-300' : 'text-slate-500 bg-slate-50 border-slate-200'
       ));
     }
-    card.appendChild(badges);
+    // Fase de Producción: subtle tags, one per distinct phase found among items.
+    order.fases.forEach(fase => {
+      badges.appendChild(badge(fase, 'text-slate-400 bg-slate-50 border-slate-200 font-semibold normal-case'));
+    });
+    body.appendChild(badges);
 
     // Items table
     const itemsWrap = document.createElement('div');
-    itemsWrap.className = 'bg-rvh-panel/60 border border-rvh-border rounded-xl overflow-hidden';
+    itemsWrap.className = 'border border-rvh-border rounded-lg overflow-hidden';
 
     const itemsHeader = document.createElement('div');
-    itemsHeader.className = 'grid grid-cols-[2.5rem_1fr_5.5rem] gap-2 px-3 py-1.5 text-[10px] font-bold uppercase text-slate-500 border-b border-rvh-border';
+    itemsHeader.className = 'grid grid-cols-[2.5rem_1fr_5.5rem] gap-2 px-3 py-1.5 text-[10px] font-bold uppercase text-slate-400 bg-slate-50 border-b border-rvh-border';
     ['Cant.', 'Descripción', 'Material'].forEach(t => {
       const s = document.createElement('span');
       s.textContent = t;
@@ -389,21 +440,21 @@ OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proc
     });
     itemsWrap.appendChild(itemsHeader);
 
-    order.items.forEach(item => {
+    order.items.forEach((item, idx) => {
       const row = document.createElement('div');
-      row.className = 'grid grid-cols-[2.5rem_1fr_5.5rem] gap-2 px-3 py-1.5 text-xs border-b border-rvh-border/60 last:border-b-0';
+      row.className = `grid grid-cols-[2.5rem_1fr_5.5rem] gap-2 px-3 py-1.5 text-xs border-b border-rvh-border last:border-b-0 ${idx % 2 === 1 ? 'bg-slate-50/60' : ''}`;
 
       const cant = document.createElement('span');
-      cant.className = 'font-bold text-slate-200';
+      cant.className = 'font-bold text-slate-700';
       cant.textContent = item.cantidad;
 
       const desc = document.createElement('span');
-      desc.className = 'text-slate-300 truncate';
+      desc.className = 'text-slate-600 truncate';
       desc.title = item.descripcion;
       desc.textContent = item.descripcion;
 
       const mat = document.createElement('span');
-      mat.className = 'text-slate-400 truncate';
+      mat.className = 'text-slate-500 truncate';
       mat.title = item.material;
       mat.textContent = item.material;
 
@@ -411,57 +462,23 @@ OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proc
       itemsWrap.appendChild(row);
     });
 
-    card.appendChild(itemsWrap);
+    body.appendChild(itemsWrap);
 
     const footer = document.createElement('p');
-    footer.className = 'text-[11px] text-slate-500 font-medium';
+    footer.className = 'text-[11px] text-slate-400 font-medium';
     footer.textContent = `${order.items.length} ${order.items.length === 1 ? 'ítem' : 'ítems'} en esta OT`;
-    card.appendChild(footer);
+    body.appendChild(footer);
 
+    card.appendChild(body);
     return card;
   }
 
   function renderBoard(orders) {
     el.board.innerHTML = '';
-    el.board.className = `grid gap-5 ${gridColsClass(phaseColumns.length)}`;
+    orders.forEach(order => el.board.appendChild(buildCard(order)));
 
-    phaseColumns.forEach((phase, idx) => {
-      const accent = COLUMN_ACCENTS[idx % COLUMN_ACCENTS.length];
-      const colOrders = orders.filter(o => o.columnId === phase);
-
-      const colEl = document.createElement('section');
-      colEl.className = 'bg-rvh-panel border border-rvh-border rounded-2xl flex flex-col min-h-[200px]';
-
-      const colHeader = document.createElement('div');
-      colHeader.className = 'flex items-center justify-between px-4 py-3 border-b border-rvh-border';
-      const colTitle = document.createElement('h2');
-      colTitle.className = 'font-bold text-sm text-white';
-      colTitle.textContent = phase;
-      const colCount = document.createElement('span');
-      colCount.className = `px-2 py-0.5 rounded-full text-xs font-bold border ${accent}`;
-      colCount.textContent = colOrders.length;
-      colHeader.append(colTitle, colCount);
-      colEl.appendChild(colHeader);
-
-      const colBody = document.createElement('div');
-      colBody.className = 'flex-1 p-3 flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-220px)]';
-
-      if (colOrders.length === 0) {
-        const empty = document.createElement('p');
-        empty.className = 'text-center text-xs text-slate-600 py-8';
-        empty.textContent = 'Sin órdenes en esta etapa';
-        colBody.appendChild(empty);
-      } else {
-        colOrders.forEach(order => colBody.appendChild(buildCard(order)));
-      }
-
-      colEl.appendChild(colBody);
-      el.board.appendChild(colEl);
-    });
-
-    const totalVisible = orders.length;
-    el.board.classList.toggle('hidden', totalVisible === 0);
-    el.empty.classList.toggle('hidden', totalVisible !== 0);
+    el.board.classList.toggle('hidden', orders.length === 0);
+    el.empty.classList.toggle('hidden', orders.length !== 0);
   }
 
   function refreshView() {
@@ -510,21 +527,19 @@ OT-3005,05/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Colada,En Proc
     let usingDemo = false;
     try {
       const text = await fetchCSVText(CONFIG.CSV_URL);
-      const result = groupOrdersByOT(parseCSV(text));
-      allOrders = result.orders;
-      phaseColumns = result.phaseOrder;
+      allOrders = groupOrders(parseCSV(text));
       hideError();
     } catch (err) {
       // Si todavía no hay nada en pantalla, mostramos datos de muestra para
       // que el tablero no quede vacío mientras se resuelve la conexión.
       if (allOrders.length === 0) {
-        const demoResult = groupOrdersByOT(parseCSV(DEMO_CSV));
-        allOrders = demoResult.orders;
-        phaseColumns = demoResult.phaseOrder;
+        allOrders = groupOrders(parseCSV(DEMO_CSV));
         usingDemo = true;
       }
       showError(err.message || 'Error al cargar los datos.');
     } finally {
+      renderMetrics();
+      renderTabs();
       refreshView();
       setStatusBar(usingDemo);
       el.loading.classList.add('hidden');
