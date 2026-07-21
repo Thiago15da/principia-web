@@ -49,8 +49,8 @@
       <div class="flex items-center gap-3">
         <div class="w-11 h-11 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center font-black text-lg">RVH</div>
         <div>
-          <h1 class="text-lg md:text-xl font-bold leading-tight">RVH Fundición</h1>
-          <p class="text-xs text-slate-300 font-semibold uppercase tracking-wide">Control de Producción</p>
+          <h1 id="app-title" class="text-lg md:text-xl font-bold leading-tight">RVH Fundición</h1>
+          <p id="app-subtitle" class="text-xs text-slate-300 font-semibold uppercase tracking-wide">Control de Producción</p>
         </div>
       </div>
 
@@ -95,8 +95,8 @@
     <div id="board" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
 
     <div id="empty-state" class="hidden text-center py-24 text-slate-400">
-      <p class="text-lg font-bold text-slate-500">No se encontraron órdenes</p>
-      <p class="text-sm mt-1">Probá con otro término de búsqueda o cambiá de sección.</p>
+      <p id="empty-title" class="text-lg font-bold text-slate-500">No se encontraron órdenes</p>
+      <p id="empty-subtitle" class="text-sm mt-1">Probá con otro término de búsqueda o cambiá de sección.</p>
     </div>
   </main>
 
@@ -118,12 +118,19 @@
     { id: 'terminado', label: '✅ Trabajos Terminados' }
   ];
 
+  // Columnas A-K (fijas, nunca cambian de significado) y columnas
+  // opcionales que pueden aparecer al final de la planilla con el
+  // desglose de cantidad por etapa. "Mecanizado" se repite a propósito:
+  // en A-K es texto (SI/NO), acá es un número de piezas en esa etapa.
+  const CORE_FIELDS = ['OT', 'Fecha Ingreso', 'Cliente', 'Tipo', 'Mecanizado', 'Prioridad', 'Fase de Producción', 'Status Final', 'Cantidad', 'Descripción', 'Material'];
+  const STAGE_FIELDS = ['Diseño', 'Moldeo', 'Fundición', 'Mecanizado', 'Rechazados', 'Listos'];
+
   // Datos de muestra usados solo si la planilla real no responde. Incluye
   // filas de continuación con OT/Cliente/Fecha Ingreso/Status Final en
-  // blanco, tal como las entrega la planilla real, para probar el
-  // "carry-over".
-  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material
-OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial
+  // blanco (carry-over), y en la primera fila de OT-3001 un desglose por
+  // etapa (columnas extra al final) para probar esa función.
+  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material,Diseño,Moldeo,Fundición,Mecanizado,Rechazados,Listos
+OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial,1,1,1,0,1,0
 ,,,Según Plano,NO,Urgente,Diseño,,12,Bujes de sujeción,Bronce
 OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,Pendiente,2,Carcasa de bomba,Hierro Gris
 ,,,Según Modelo,SI incluye mecanizado,Normal,Colada,,2,Tapa lateral,Hierro Gris
@@ -138,11 +145,15 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   // DOM refs
   // ---------------------------------------------------------------------
   const el = {
+    appTitle: document.getElementById('app-title'),
+    appSubtitle: document.getElementById('app-subtitle'),
     metrics: document.getElementById('metrics'),
     tabs: document.getElementById('tabs'),
     board: document.getElementById('board'),
     loading: document.getElementById('loading-state'),
     empty: document.getElementById('empty-state'),
+    emptyTitle: document.getElementById('empty-title'),
+    emptySubtitle: document.getElementById('empty-subtitle'),
     errorBanner: document.getElementById('error-banner'),
     errorText: document.getElementById('error-text'),
     errorRetry: document.getElementById('error-retry'),
@@ -156,6 +167,12 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   let allOrders = [];
   let activeTab = 'pendiente';
   let refreshTimer = null;
+
+  // Portal de cliente: ?cliente=SEARCH_TERM restringe todo el tablero a un
+  // único cliente y oculta las métricas internas de la empresa.
+  const clienteParam = (new URLSearchParams(window.location.search).get('cliente') || '').trim();
+  const isClientPortal = clienteParam !== '';
+  let clientPortalName = null;
 
   // ---------------------------------------------------------------------
   // Helpers
@@ -183,6 +200,19 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     return normalize(value).includes('urgente');
   }
 
+  // Clave de comparación para el portal de cliente: sin acentos, espacios
+  // ni caracteres especiales, para que "Kove" o "kove s.a." matcheen igual.
+  function normalizeClientKey(value) {
+    return normalize(value).replace(/[^a-z0-9]/g, '');
+  }
+
+  function toNumber(value) {
+    const trimmed = (value || '').toString().trim();
+    if (trimmed === '') return null;
+    const n = Number(trimmed.replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+
   function parseDDMMYYYY(value) {
     const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec((value || '').trim());
     if (!m) return null;
@@ -196,9 +226,26 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     return Math.round(diffMs / 86400000);
   }
 
+  // Busca el índice de un encabezado por nombre (sin distinguir
+  // acentos/mayúsculas), desde una posición de la fila en adelante. Se usa
+  // con fromIndex para separar la columna A-K "Mecanizado" (texto) de la
+  // columna opcional "Mecanizado" (cantidad) que puede repetir el nombre.
+  function findHeaderIndex(headers, name, fromIndex) {
+    const target = normalize(name);
+    for (let i = fromIndex; i < headers.length; i++) {
+      if (normalize(headers[i]) === target) return i;
+    }
+    return -1;
+  }
+
   // ---------------------------------------------------------------------
   // CSV parsing (RFC4180-ish: handles quoted fields, embedded commas/newlines)
-  // Processes every row the sheet returns; no row cap.
+  // Processes every row the sheet returns; no row cap. Columns A-K are
+  // resolved by name (first occurrence), and any optional stage-quantity
+  // columns at the end of the sheet are resolved separately, by name,
+  // starting right after "Material" — so a repeated header name (like the
+  // optional "Mecanizado" quantity column) never overwrites the original
+  // A-K field.
   // ---------------------------------------------------------------------
   function parseCSV(text) {
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM (Google Sheets export)
@@ -223,11 +270,21 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     if (field.length || row.length) { row.push(field); rows.push(row); }
 
     const headers = (rows.shift() || []).map(h => h.trim());
+
+    const coreIndex = {};
+    CORE_FIELDS.forEach(name => { coreIndex[name] = findHeaderIndex(headers, name, 0); });
+    const tailStart = coreIndex['Material'] === -1 ? 0 : coreIndex['Material'] + 1;
+    const stageIndex = {};
+    STAGE_FIELDS.forEach(name => { stageIndex[name] = findHeaderIndex(headers, name, tailStart); });
+
     return rows
       .filter(r => r.some(v => v.trim() !== ''))
       .map(r => {
+        const cell = i => (i === -1 || i === undefined ? '' : (r[i] ?? '').trim());
         const obj = {};
-        headers.forEach((h, idx) => { obj[h] = (r[idx] ?? '').trim(); });
+        CORE_FIELDS.forEach(name => { obj[name] = cell(coreIndex[name]); });
+        obj.stages = {};
+        STAGE_FIELDS.forEach(name => { obj.stages[name] = cell(stageIndex[name]); });
         return obj;
       });
   }
@@ -281,10 +338,14 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       if (isUrgent(row['Prioridad'])) order.urgent = true;
       if (isAffirmative(row['Mecanizado'])) order.machining = true;
 
+      const stages = {};
+      STAGE_FIELDS.forEach(name => { stages[name] = toNumber(row.stages[name]); });
+
       order.items.push({
         cantidad: row['Cantidad'] || '',
-        descripcion: row['Descripción'] || row['Descripcion'] || '',
-        material: row['Material'] || ''
+        descripcion: row['Descripción'] || '',
+        material: row['Material'] || '',
+        stages
       });
     });
 
@@ -299,6 +360,56 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       diasEnProceso: order.fechaIngresoDate ? daysSince(order.fechaIngresoDate) : null,
       bucket: normalize(order.statusFinal) === 'terminado' ? 'terminado' : 'pendiente'
     }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Client portal (?cliente=SEARCH_TERM)
+  // ---------------------------------------------------------------------
+  // Resuelve, contra los datos ya cargados, qué cliente real matchea el
+  // parámetro de la URL. Se guarda el nombre "canónico" (tal cual figura
+  // en la planilla) para poder filtrar y mostrarlo en el header.
+  function resolveClientPortal() {
+    if (!isClientPortal) return;
+    const target = normalizeClientKey(clienteParam);
+    if (!target) { clientPortalName = null; return; }
+    // Se prioriza una coincidencia exacta para evitar ambigüedad cuando el
+    // nombre de un cliente queda contenido dentro del de otro; si no hay
+    // coincidencia exacta, se admite substring (para keywords como "kove").
+    const exact = allOrders.find(o => normalizeClientKey(o.cliente) === target);
+    const partial = exact || allOrders.find(o => normalizeClientKey(o.cliente).includes(target));
+    clientPortalName = partial ? partial.cliente : null;
+  }
+
+  // Todas las órdenes visibles para el modo actual: sin filtrar en el
+  // panel interno, o restringidas a un único cliente en el portal.
+  function scopedOrders() {
+    if (!isClientPortal) return allOrders;
+    if (!clientPortalName) return [];
+    const target = normalizeClientKey(clientPortalName);
+    return allOrders.filter(o => normalizeClientKey(o.cliente) === target);
+  }
+
+  function applyPortalMode() {
+    if (!isClientPortal) {
+      el.appTitle.textContent = 'RVH Fundición';
+      el.appSubtitle.textContent = 'Control de Producción';
+      el.emptyTitle.textContent = 'No se encontraron órdenes';
+      el.emptySubtitle.textContent = 'Probá con otro término de búsqueda o cambiá de sección.';
+      return;
+    }
+
+    el.appTitle.textContent = 'Portal de Consulta de Cliente';
+    el.appSubtitle.textContent = clientPortalName || 'Cliente no encontrado';
+    el.metrics.innerHTML = '';
+    el.metrics.classList.add('hidden');
+
+    if (clientPortalName) {
+      el.emptyTitle.textContent = 'No se encontraron órdenes';
+      el.emptySubtitle.textContent = 'No hay órdenes de este cliente en esta sección.';
+    } else {
+      el.emptyTitle.textContent = 'Cliente no encontrado';
+      el.emptySubtitle.textContent = 'Verificá el enlace recibido o comunicate con RVH Fundición.';
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -333,9 +444,10 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   }
 
   function renderTabs() {
+    const base = scopedOrders();
     el.tabs.innerHTML = '';
     TABS.forEach(tab => {
-      const count = allOrders.filter(o => o.bucket === tab.id).length;
+      const count = base.filter(o => o.bucket === tab.id).length;
       const isActive = tab.id === activeTab;
 
       const btn = document.createElement('button');
@@ -359,7 +471,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   // Search / filter
   // ---------------------------------------------------------------------
   function getFilteredOrders() {
-    const bucketOrders = allOrders.filter(o => o.bucket === activeTab);
+    const bucketOrders = scopedOrders().filter(o => o.bucket === activeTab);
     const q = normalize(el.search.value);
     if (!q) return bucketOrders;
     return bucketOrders.filter(order => {
@@ -450,8 +562,11 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     itemsWrap.appendChild(itemsHeader);
 
     order.items.forEach((item, idx) => {
+      const rowWrap = document.createElement('div');
+      rowWrap.className = `border-b border-rvh-border last:border-b-0 ${idx % 2 === 1 ? 'bg-slate-50/60' : ''}`;
+
       const row = document.createElement('div');
-      row.className = `grid grid-cols-[2.5rem_1fr_5.5rem] gap-2 px-3 py-1.5 text-xs border-b border-rvh-border last:border-b-0 ${idx % 2 === 1 ? 'bg-slate-50/60' : ''}`;
+      row.className = 'grid grid-cols-[2.5rem_1fr_5.5rem] gap-2 px-3 py-1.5 text-xs';
 
       const cant = document.createElement('span');
       cant.className = 'font-bold text-slate-700';
@@ -468,7 +583,29 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       mat.textContent = item.material;
 
       row.append(cant, desc, mat);
-      itemsWrap.appendChild(row);
+      rowWrap.appendChild(row);
+
+      // Si la planilla trae el desglose por etapa (columnas opcionales al
+      // final), mostrarlo como badges; si no, la Cantidad de arriba ya
+      // alcanza (fallback seamless).
+      const stageEntries = STAGE_FIELDS
+        .map(name => ({ name, value: item.stages[name] }))
+        .filter(s => s.value !== null && s.value > 0);
+
+      if (stageEntries.length > 0) {
+        const breakdown = document.createElement('div');
+        breakdown.className = 'flex flex-wrap gap-1 px-3 pb-2';
+        stageEntries.forEach(({ name, value }) => {
+          const isRechazados = normalize(name) === normalize('Rechazados');
+          breakdown.appendChild(badge(
+            `${name}: ${value}`,
+            isRechazados ? 'text-red-700 bg-red-50 border-red-300' : 'text-rvh-steel bg-slate-100 border-slate-200'
+          ));
+        });
+        rowWrap.appendChild(breakdown);
+      }
+
+      itemsWrap.appendChild(rowWrap);
     });
 
     body.appendChild(itemsWrap);
@@ -547,7 +684,9 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       }
       showError(err.message || 'Error al cargar los datos.');
     } finally {
-      renderMetrics();
+      resolveClientPortal();
+      applyPortalMode();
+      if (!isClientPortal) renderMetrics();
       renderTabs();
       refreshView();
       setStatusBar(usingDemo);
