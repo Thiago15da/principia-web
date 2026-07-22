@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RVH Fundición | Portal de Seguimiento</title>
+<title>RVH Fundición | Panel Interno</title>
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f2942">
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="RVH Producción">
+<meta name="apple-mobile-web-app-title" content="RVH Fábrica">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
 <script src="https://cdn.tailwindcss.com"></script>
@@ -52,17 +52,17 @@
           class="rounded-lg bg-white/10 border border-white/20 p-1"
           onerror="this.style.display='none';">
         <div>
-          <h1 id="app-title" class="text-lg md:text-xl font-bold leading-tight">RVH Fundición</h1>
-          <p id="app-subtitle" class="text-xs text-slate-300 font-semibold uppercase tracking-wide">Portal de Seguimiento de Pedidos</p>
+          <h1 class="text-lg md:text-xl font-bold leading-tight">RVH Fundición</h1>
+          <p class="text-xs text-slate-300 font-semibold uppercase tracking-wide">Panel Interno de Producción</p>
         </div>
       </div>
 
-      <div id="header-controls" class="hidden flex-1 md:flex-none items-center gap-3 md:max-w-md">
+      <div class="flex flex-1 md:flex-none items-center gap-3 md:max-w-md">
         <div class="relative flex-1">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
           </svg>
-          <input id="search-input" type="text" placeholder="Buscar por OT o descripción..."
+          <input id="search-input" type="text" placeholder="Buscar por OT, cliente o descripción..."
             class="w-full bg-white text-slate-800 border border-white/20 rounded-lg py-2.5 pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-rvh-amber/60 placeholder:text-slate-400">
           <button id="clear-search" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -81,44 +81,27 @@
 
   <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-6">
 
-    <!-- Pantalla de inicio: se muestra solo si la URL no trae ?cliente=.
-         No se carga ningún dato de la planilla acá. -->
-    <section id="landing-view" class="max-w-md mx-auto mt-10 md:mt-20">
-      <div class="bg-white border border-rvh-border rounded-2xl shadow-sm p-8 text-center">
-        <img src="IMG_8258.png" alt="RVH Logo"
-          style="max-height: 70px; height: 70px; width: auto; object-fit: contain; margin: 0 auto 1.25rem;"
-          onerror="this.style.display='none';">
-        <h2 class="text-xl font-bold text-rvh-navy mb-1">Consultá tus órdenes</h2>
-        <p class="text-sm text-slate-500 mb-6">Ingresá el nombre o código de tu empresa para ver el estado de tus pedidos en RVH Fundición.</p>
-        <form id="landing-form" class="flex flex-col gap-3">
-          <input id="landing-input" type="text" placeholder="Ingrese su código de cliente"
-            class="w-full px-4 py-3 bg-rvh-bg border border-rvh-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-rvh-navyLight/50 placeholder:text-slate-400"
-            required>
-          <button type="submit" class="w-full bg-rvh-navy text-white font-bold py-3 rounded-lg hover:bg-rvh-navyLight transition shadow-sm">Buscar</button>
-        </form>
-      </div>
-    </section>
+    <div id="gerencia-dashboard" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
 
-    <!-- Vista de resultados: se muestra solo si la URL trae ?cliente=. -->
-    <div id="portal-view" class="hidden space-y-6">
-      <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
-        <span id="error-text"></span>
-        <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-900">Reintentar</button>
-      </div>
+    <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+      <span id="error-text"></span>
+      <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-900">Reintentar</button>
+    </div>
 
-      <div id="tabs" class="flex flex-wrap gap-2"></div>
+    <div id="metrics" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
 
-      <div id="loading-state" class="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
-        <div class="spinner"></div>
-        <p class="text-sm">Cargando órdenes de trabajo...</p>
-      </div>
+    <div id="tabs" class="flex flex-wrap gap-2"></div>
 
-      <div id="board" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+    <div id="loading-state" class="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+      <div class="spinner"></div>
+      <p class="text-sm">Cargando órdenes de trabajo...</p>
+    </div>
 
-      <div id="empty-state" class="hidden text-center py-24 text-slate-400">
-        <p id="empty-title" class="text-lg font-bold text-slate-500">No se encontraron órdenes</p>
-        <p id="empty-subtitle" class="text-sm mt-1">Probá con otro término de búsqueda o cambiá de sección.</p>
-      </div>
+    <div id="board" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+
+    <div id="empty-state" class="hidden text-center py-24 text-slate-400">
+      <p class="text-lg font-bold text-slate-500">No se encontraron órdenes</p>
+      <p class="text-sm mt-1">Probá con otro término de búsqueda o cambiá de sección.</p>
     </div>
   </main>
 
@@ -127,24 +110,29 @@
 (function () {
   'use strict';
 
-  const { CONFIG, TABS, DEMO_CSV, normalize, debounce, parseCSV, groupOrders, matchClient, fetchCSVText, buildCard } = window.RVH;
+  // -----------------------------------------------------------------
+  // Acceso: pide contraseña antes de tocar el DOM o pedir la planilla.
+  // Esto es solo una traba del lado del cliente (cualquiera con acceso
+  // a las herramientas de desarrollador puede saltarla) — no reemplaza
+  // un control de acceso real en el servidor, pero cumple lo pedido:
+  // bloquear la vista y el fetch si la contraseña falla.
+  // -----------------------------------------------------------------
+  const PASSWORD = 'RVH2026';
+  const entered = window.prompt('Acceso interno RVH Fundición\nIngresá la contraseña:');
+  if (entered !== PASSWORD) {
+    document.body.innerHTML = 'Acceso Denegado';
+    return;
+  }
 
-  const clienteParam = (new URLSearchParams(window.location.search).get('cliente') || '').trim();
+  const { CONFIG, TABS, DEMO_CSV, normalize, debounce, parseCSV, groupOrders, fetchCSVText, buildCard } = window.RVH;
 
   const el = {
-    appTitle: document.getElementById('app-title'),
-    appSubtitle: document.getElementById('app-subtitle'),
-    headerControls: document.getElementById('header-controls'),
-    landingView: document.getElementById('landing-view'),
-    landingForm: document.getElementById('landing-form'),
-    landingInput: document.getElementById('landing-input'),
-    portalView: document.getElementById('portal-view'),
+    gerencia: document.getElementById('gerencia-dashboard'),
+    metrics: document.getElementById('metrics'),
     tabs: document.getElementById('tabs'),
     board: document.getElementById('board'),
     loading: document.getElementById('loading-state'),
     empty: document.getElementById('empty-state'),
-    emptyTitle: document.getElementById('empty-title'),
-    emptySubtitle: document.getElementById('empty-subtitle'),
     errorBanner: document.getElementById('error-banner'),
     errorText: document.getElementById('error-text'),
     errorRetry: document.getElementById('error-retry'),
@@ -155,47 +143,108 @@
     statusBar: document.getElementById('status-bar')
   };
 
-  // -----------------------------------------------------------------
-  // Sin ?cliente=: pantalla de búsqueda, sin tocar la planilla.
-  // -----------------------------------------------------------------
-  if (!clienteParam) {
-    el.landingInput.focus();
-    el.landingForm.addEventListener('submit', e => {
-      e.preventDefault();
-      const value = el.landingInput.value.trim();
-      if (!value) return;
-      window.location.href = '?cliente=' + encodeURIComponent(value);
-    });
-    return;
-  }
-
-  // -----------------------------------------------------------------
-  // Con ?cliente=: portal filtrado. Nunca se muestra nada de otro cliente.
-  // -----------------------------------------------------------------
-  el.landingView.classList.add('hidden');
-  el.portalView.classList.remove('hidden');
-  el.headerControls.classList.remove('hidden');
-
   let allOrders = [];
-  let clientOrders = [];
-  let clientName = null;
   let activeTab = 'pendiente';
 
-  function getFilteredOrders() {
-    const bucketOrders = clientOrders.filter(o => o.bucket === activeTab);
-    const q = normalize(el.search.value);
-    if (!q) return bucketOrders;
-    return bucketOrders.filter(order => {
-      const haystack = normalize([order.otNumber, ...order.items.map(i => i.descripcion)].join(' '));
-      return haystack.includes(q);
+  // ---------------------------------------------------------------------
+  // Dashboard de Gerencia (piezas, no órdenes), sobre las órdenes activas
+  // ("pendiente" = Pendiente/En Curso).
+  // ---------------------------------------------------------------------
+  function computeGerenciaStats() {
+    const activas = allOrders.filter(o => o.bucket === 'pendiente');
+
+    const totalPedidas = activas.reduce((sum, o) => sum + o.totalCantidad, 0);
+    const totalListas = activas.reduce((sum, o) => sum + o.totalListos, 0);
+    const totalRechazadas = activas.reduce((sum, o) => sum + o.totalRechazados, 0);
+
+    const porCliente = new Map();
+    activas.forEach(o => {
+      porCliente.set(o.cliente, (porCliente.get(o.cliente) || 0) + o.totalCantidad);
+    });
+    let topCliente = null;
+    let topVolumen = 0;
+    porCliente.forEach((volumen, cliente) => {
+      if (volumen > topVolumen) { topVolumen = volumen; topCliente = cliente; }
+    });
+
+    return { totalPedidas, totalListas, totalRechazadas, topCliente, topVolumen };
+  }
+
+  function renderGerenciaDashboard() {
+    const stats = computeGerenciaStats();
+    const tiles = [
+      { label: '📊 Total Piezas Pedidas', value: String(stats.totalPedidas), valueClass: 'text-2xl font-black mt-1 text-rvh-navy' },
+      { label: '✅ Total Piezas Listas', value: String(stats.totalListas), valueClass: 'text-2xl font-black mt-1 text-emerald-600' },
+      {
+        label: '❌ Total Piezas Rechazadas',
+        value: String(stats.totalRechazadas),
+        valueClass: `text-2xl font-black mt-1 ${stats.totalRechazadas > 0 ? 'text-red-600' : 'text-slate-400'}`,
+        borderClass: stats.totalRechazadas > 0 ? 'border-red-200' : 'border-rvh-border'
+      },
+      {
+        label: '🏆 Cliente con más volumen',
+        value: stats.topCliente || 'Sin datos',
+        valueClass: 'text-base font-black mt-1 text-rvh-navyLight truncate',
+        sub: stats.topCliente ? `${stats.topVolumen} piezas pedidas` : ''
+      }
+    ];
+
+    el.gerencia.innerHTML = '';
+    tiles.forEach(t => {
+      const tile = document.createElement('div');
+      tile.className = `bg-white border rounded-xl shadow-sm px-4 py-3.5 ${t.borderClass || 'border-rvh-border'}`;
+      const label = document.createElement('p');
+      label.className = 'text-[11px] font-bold uppercase tracking-wide text-slate-400';
+      label.textContent = t.label;
+      const value = document.createElement('p');
+      value.className = t.valueClass;
+      value.textContent = t.value;
+      if (t.value.length > 14) value.title = t.value;
+      tile.append(label, value);
+      if (t.sub) {
+        const sub = document.createElement('p');
+        sub.className = 'text-[11px] text-slate-400 font-medium mt-0.5';
+        sub.textContent = t.sub;
+        tile.appendChild(sub);
+      }
+      el.gerencia.appendChild(tile);
+    });
+  }
+
+  function renderMetrics() {
+    const total = allOrders.length;
+    const enCurso = allOrders.filter(o => o.bucket === 'pendiente').length;
+    const terminadas = allOrders.filter(o => o.bucket === 'terminado').length;
+    const alertas = allOrders.filter(o => o.bucket === 'pendiente' && o.diasEnProceso !== null && o.diasEnProceso > CONFIG.DIAS_ALERTA).length;
+
+    const tiles = [
+      { label: 'Total Órdenes', value: total, accent: 'text-rvh-navy' },
+      { label: 'En Curso', value: enCurso, accent: 'text-rvh-navyLight' },
+      { label: 'Terminadas', value: terminadas, accent: 'text-emerald-600' },
+      { label: `Alertas (> ${CONFIG.DIAS_ALERTA} días)`, value: alertas, accent: alertas > 0 ? 'text-red-600' : 'text-slate-400' }
+    ];
+
+    el.metrics.innerHTML = '';
+    tiles.forEach(m => {
+      const tile = document.createElement('div');
+      tile.className = 'bg-white border border-rvh-border rounded-xl shadow-sm px-4 py-3.5';
+      const label = document.createElement('p');
+      label.className = 'text-[11px] font-bold uppercase tracking-wide text-slate-400';
+      label.textContent = m.label;
+      const value = document.createElement('p');
+      value.className = `text-2xl font-black mt-1 ${m.accent}`;
+      value.textContent = m.value;
+      tile.append(label, value);
+      el.metrics.appendChild(tile);
     });
   }
 
   function renderTabs() {
     el.tabs.innerHTML = '';
     TABS.forEach(tab => {
-      const count = clientOrders.filter(o => o.bucket === tab.id).length;
+      const count = allOrders.filter(o => o.bucket === tab.id).length;
       const isActive = tab.id === activeTab;
+
       const btn = document.createElement('button');
       btn.className = `px-4 py-2.5 rounded-lg text-sm font-bold border transition ${
         isActive
@@ -213,6 +262,20 @@
     });
   }
 
+  function getFilteredOrders() {
+    const bucketOrders = allOrders.filter(o => o.bucket === activeTab);
+    const q = normalize(el.search.value);
+    if (!q) return bucketOrders;
+    return bucketOrders.filter(order => {
+      const haystack = normalize([
+        order.otNumber,
+        order.cliente,
+        ...order.items.map(i => i.descripcion)
+      ].join(' '));
+      return haystack.includes(q);
+    });
+  }
+
   function renderBoard(orders) {
     el.board.innerHTML = '';
     orders.forEach(order => el.board.appendChild(buildCard(order)));
@@ -222,20 +285,6 @@
 
   function refreshView() {
     renderBoard(getFilteredOrders());
-  }
-
-  function applyClientHeader() {
-    if (clientName) {
-      el.appTitle.textContent = `Portal de Seguimiento - ${clientName}`;
-      el.appSubtitle.textContent = 'Consulta de Órdenes de Trabajo';
-      el.emptyTitle.textContent = 'No se encontraron órdenes';
-      el.emptySubtitle.textContent = 'No hay órdenes de este cliente en esta sección.';
-    } else {
-      el.appTitle.textContent = 'Portal de Seguimiento';
-      el.appSubtitle.textContent = 'Cliente no encontrado';
-      el.emptyTitle.textContent = 'Cliente no encontrado';
-      el.emptySubtitle.textContent = 'Verificá el enlace recibido o comunicate con RVH Fundición.';
-    }
   }
 
   function setStatusBar(usingDemo) {
@@ -280,14 +329,8 @@
       }
       showError(err.message || 'Error al cargar los datos.');
     } finally {
-      // Filtro estricto: solo las órdenes del cliente que matcheó quedan
-      // en memoria para renderizar. Nada de otros clientes se procesa acá.
-      clientName = matchClient(allOrders, clienteParam);
-      clientOrders = clientName
-        ? allOrders.filter(o => o.cliente === clientName)
-        : [];
-
-      applyClientHeader();
+      renderGerenciaDashboard();
+      renderMetrics();
       renderTabs();
       refreshView();
       setStatusBar(usingDemo);
