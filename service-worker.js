@@ -1,10 +1,13 @@
 'use strict';
 
-const CACHE_NAME = 'rvh-produccion-static-v1';
+const CACHE_NAME = 'rvh-produccion-static-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
+  './fabrica.html',
+  './shared.js',
   './manifest.json',
+  './IMG_8258.png',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];
@@ -12,7 +15,11 @@ const STATIC_ASSETS = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(STATIC_ASSETS))
+      .then(cache => Promise.all(
+        // cache.add() individual (no cache.addAll) para que un asset que
+        // todavía no exista (ej. el logo) no tumbe la instalación entera.
+        STATIC_ASSETS.map(url => cache.add(url).catch(() => {}))
+      ))
       .then(() => self.skipWaiting())
   );
 });
