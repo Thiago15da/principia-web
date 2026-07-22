@@ -47,7 +47,11 @@
   <header class="sticky top-0 z-20 bg-rvh-navy text-white shadow-md">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-11 h-11 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center font-black text-lg">RVH</div>
+        <img src="IMG_8258.png" alt="Logo RVH Fundición"
+          class="rounded-lg bg-white/10 border border-white/20 p-1"
+          style="max-height: 50px; height: 50px; width: auto; object-fit: contain;"
+          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="hidden w-11 h-11 rounded-lg bg-white/10 border border-white/20 items-center justify-center font-black text-lg">RVH</div>
         <div>
           <h1 id="app-title" class="text-lg md:text-xl font-bold leading-tight">RVH Fundición</h1>
           <p id="app-subtitle" class="text-xs text-slate-300 font-semibold uppercase tracking-wide">Control de Producción</p>
@@ -78,14 +82,17 @@
 
   <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-6">
 
-    <div id="gerencia-dashboard" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+    <!-- Estadísticas internas de la empresa: nunca deben verse desde el
+         portal de cliente (?cliente=...). -->
+    <div id="admin-dashboard" class="space-y-6">
+      <div id="gerencia-dashboard" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+      <div id="metrics" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+    </div>
 
     <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
       <span id="error-text"></span>
       <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-900">Reintentar</button>
     </div>
-
-    <div id="metrics" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
 
     <div id="tabs" class="flex flex-wrap gap-2"></div>
 
@@ -152,6 +159,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   const el = {
     appTitle: document.getElementById('app-title'),
     appSubtitle: document.getElementById('app-subtitle'),
+    adminDashboard: document.getElementById('admin-dashboard'),
     gerencia: document.getElementById('gerencia-dashboard'),
     metrics: document.getElementById('metrics'),
     tabs: document.getElementById('tabs'),
@@ -424,15 +432,23 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     if (!isClientPortal) {
       el.appTitle.textContent = 'RVH Fundición';
       el.appSubtitle.textContent = 'Control de Producción';
+      el.adminDashboard.classList.remove('hidden');
       el.emptyTitle.textContent = 'No se encontraron órdenes';
       el.emptySubtitle.textContent = 'Probá con otro término de búsqueda o cambiá de sección.';
       return;
     }
 
-    el.appTitle.textContent = 'Portal de Consulta de Cliente';
-    el.appSubtitle.textContent = clientPortalName || 'Cliente no encontrado';
+    // El cliente nunca debe ver estadísticas internas de la fábrica: se
+    // oculta el contenedor completo (display:none vía la clase 'hidden'),
+    // no solo su contenido.
+    el.adminDashboard.classList.add('hidden');
+    el.gerencia.innerHTML = '';
     el.metrics.innerHTML = '';
-    el.metrics.classList.add('hidden');
+
+    el.appTitle.textContent = clientPortalName
+      ? `Portal de Seguimiento - ${clientPortalName}`
+      : 'Portal de Seguimiento';
+    el.appSubtitle.textContent = clientPortalName ? 'Consulta de Órdenes de Trabajo' : 'Cliente no encontrado';
 
     if (clientPortalName) {
       el.emptyTitle.textContent = 'No se encontraron órdenes';
