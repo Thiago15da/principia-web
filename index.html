@@ -78,6 +78,8 @@
 
   <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-6">
 
+    <div id="gerencia-dashboard" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+
     <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
       <span id="error-text"></span>
       <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-900">Reintentar</button>
@@ -124,15 +126,18 @@
   // en A-K es texto (SI/NO), acá es un número de piezas en esa etapa.
   const CORE_FIELDS = ['OT', 'Fecha Ingreso', 'Cliente', 'Tipo', 'Mecanizado', 'Prioridad', 'Fase de Producción', 'Status Final', 'Cantidad', 'Descripción', 'Material'];
   const STAGE_FIELDS = ['Diseño', 'Moldeo', 'Fundición', 'Mecanizado', 'Rechazados', 'Listos'];
+  // Algunas planillas nombran la columna de cantidad distinto; si no se
+  // encuentra "Cantidad" tal cual, se prueban estos alias en orden.
+  const CORE_FIELD_ALIASES = { 'Cantidad': ['Cant Total', 'Cant. Total', 'Cantidad Total'] };
 
   // Datos de muestra usados solo si la planilla real no responde. Incluye
   // filas de continuación con OT/Cliente/Fecha Ingreso/Status Final en
   // blanco (carry-over), y en la primera fila de OT-3001 un desglose por
   // etapa (columnas extra al final) para probar esa función.
   const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material,Diseño,Moldeo,Fundición,Mecanizado,Rechazados,Listos
-OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial,1,1,1,0,1,0
+OT-3001,01/07/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial,1,1,0,0,1,1
 ,,,Según Plano,NO,Urgente,Diseño,,12,Bujes de sujeción,Bronce
-OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,Pendiente,2,Carcasa de bomba,Hierro Gris
+OT-3002,28/06/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,Pendiente,2,Carcasa de bomba,Hierro Gris,0,0,1,0,0,1
 ,,,Según Modelo,SI incluye mecanizado,Normal,Colada,,2,Tapa lateral,Hierro Gris
 ,,,Según Modelo,NO,Normal,Moldeo,,8,Prisioneros,Acero Especial
 OT-3003,15/07/2026,Talleres Ñandutí,Según Muestra,SI incluye mecanizado,Normal,Mecanizado,Pendiente,1,Rueda dentada,Acero Especial
@@ -147,6 +152,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   const el = {
     appTitle: document.getElementById('app-title'),
     appSubtitle: document.getElementById('app-subtitle'),
+    gerencia: document.getElementById('gerencia-dashboard'),
     metrics: document.getElementById('metrics'),
     tabs: document.getElementById('tabs'),
     board: document.getElementById('board'),
@@ -238,6 +244,19 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     return -1;
   }
 
+  // Igual que findHeaderIndex, pero si el nombre no aparece prueba sus
+  // alias conocidos (ej. "Cantidad" también puede venir como "Cant Total").
+  function resolveCoreIndex(headers, name) {
+    let idx = findHeaderIndex(headers, name, 0);
+    if (idx === -1 && CORE_FIELD_ALIASES[name]) {
+      for (const alias of CORE_FIELD_ALIASES[name]) {
+        idx = findHeaderIndex(headers, alias, 0);
+        if (idx !== -1) break;
+      }
+    }
+    return idx;
+  }
+
   // ---------------------------------------------------------------------
   // CSV parsing (RFC4180-ish: handles quoted fields, embedded commas/newlines)
   // Processes every row the sheet returns; no row cap. Columns A-K are
@@ -272,7 +291,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     const headers = (rows.shift() || []).map(h => h.trim());
 
     const coreIndex = {};
-    CORE_FIELDS.forEach(name => { coreIndex[name] = findHeaderIndex(headers, name, 0); });
+    CORE_FIELDS.forEach(name => { coreIndex[name] = resolveCoreIndex(headers, name); });
     const tailStart = coreIndex['Material'] === -1 ? 0 : coreIndex['Material'] + 1;
     const stageIndex = {};
     STAGE_FIELDS.forEach(name => { stageIndex[name] = findHeaderIndex(headers, name, tailStart); });
@@ -343,23 +362,35 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
 
       order.items.push({
         cantidad: row['Cantidad'] || '',
+        cantidadNum: toNumber(row['Cantidad']),
         descripcion: row['Descripción'] || '',
         material: row['Material'] || '',
         stages
       });
     });
 
-    return Array.from(map.values()).map(order => ({
-      otNumber: order.otNumber,
-      cliente: order.cliente,
-      tipoOrigen: Array.from(order.tipoSet).filter(Boolean).join(' / ') || 'N/D',
-      urgent: order.urgent,
-      machining: order.machining,
-      items: order.items,
-      fechaIngreso: order.fechaIngresoRaw,
-      diasEnProceso: order.fechaIngresoDate ? daysSince(order.fechaIngresoDate) : null,
-      bucket: normalize(order.statusFinal) === 'terminado' ? 'terminado' : 'pendiente'
-    }));
+    return Array.from(map.values()).map(order => {
+      const totalCantidad = order.items.reduce((sum, i) => sum + (i.cantidadNum || 0), 0);
+      const totalListos = order.items.reduce((sum, i) => sum + (i.stages['Listos'] || 0), 0);
+      const totalRechazados = order.items.reduce((sum, i) => sum + (i.stages['Rechazados'] || 0), 0);
+
+      return {
+        otNumber: order.otNumber,
+        cliente: order.cliente,
+        tipoOrigen: Array.from(order.tipoSet).filter(Boolean).join(' / ') || 'N/D',
+        urgent: order.urgent,
+        machining: order.machining,
+        items: order.items,
+        fechaIngreso: order.fechaIngresoRaw,
+        diasEnProceso: order.fechaIngresoDate ? daysSince(order.fechaIngresoDate) : null,
+        bucket: normalize(order.statusFinal) === 'terminado' ? 'terminado' : 'pendiente',
+        totalCantidad,
+        totalListos,
+        totalRechazados,
+        // Piezas Faltantes = Cantidad Total - Listos (nunca negativo).
+        faltantes: Math.max(0, totalCantidad - totalListos)
+      };
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -410,6 +441,87 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       el.emptyTitle.textContent = 'Cliente no encontrado';
       el.emptySubtitle.textContent = 'Verificá el enlace recibido o comunicate con RVH Fundición.';
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Dashboard de Gerencia (piezas, no órdenes): siempre sobre las órdenes
+  // activas ("pendiente" = Pendiente/En Curso), y solo en el panel
+  // interno — nunca en el portal de cliente.
+  // ---------------------------------------------------------------------
+  function computeGerenciaStats() {
+    const activas = allOrders.filter(o => o.bucket === 'pendiente');
+
+    const totalPedidas = activas.reduce((sum, o) => sum + o.totalCantidad, 0);
+    const totalListas = activas.reduce((sum, o) => sum + o.totalListos, 0);
+    const totalRechazadas = activas.reduce((sum, o) => sum + o.totalRechazados, 0);
+
+    const porCliente = new Map();
+    activas.forEach(o => {
+      porCliente.set(o.cliente, (porCliente.get(o.cliente) || 0) + o.totalCantidad);
+    });
+    let topCliente = null;
+    let topVolumen = 0;
+    porCliente.forEach((volumen, cliente) => {
+      if (volumen > topVolumen) { topVolumen = volumen; topCliente = cliente; }
+    });
+
+    return { totalPedidas, totalListas, totalRechazadas, topCliente, topVolumen };
+  }
+
+  function renderGerenciaDashboard() {
+    if (isClientPortal) {
+      el.gerencia.innerHTML = '';
+      el.gerencia.classList.add('hidden');
+      return;
+    }
+    el.gerencia.classList.remove('hidden');
+
+    const stats = computeGerenciaStats();
+    const tiles = [
+      {
+        label: '📊 Total Piezas Pedidas',
+        value: String(stats.totalPedidas),
+        valueClass: 'text-2xl font-black mt-1 text-rvh-navy'
+      },
+      {
+        label: '✅ Total Piezas Listas',
+        value: String(stats.totalListas),
+        valueClass: 'text-2xl font-black mt-1 text-emerald-600'
+      },
+      {
+        label: '❌ Total Piezas Rechazadas',
+        value: String(stats.totalRechazadas),
+        valueClass: `text-2xl font-black mt-1 ${stats.totalRechazadas > 0 ? 'text-red-600' : 'text-slate-400'}`,
+        borderClass: stats.totalRechazadas > 0 ? 'border-red-200' : 'border-rvh-border'
+      },
+      {
+        label: '🏆 Cliente con más volumen',
+        value: stats.topCliente || 'Sin datos',
+        valueClass: 'text-base font-black mt-1 text-rvh-navyLight truncate',
+        sub: stats.topCliente ? `${stats.topVolumen} piezas pedidas` : ''
+      }
+    ];
+
+    el.gerencia.innerHTML = '';
+    tiles.forEach(t => {
+      const tile = document.createElement('div');
+      tile.className = `bg-white border rounded-xl shadow-sm px-4 py-3.5 ${t.borderClass || 'border-rvh-border'}`;
+      const label = document.createElement('p');
+      label.className = 'text-[11px] font-bold uppercase tracking-wide text-slate-400';
+      label.textContent = t.label;
+      const value = document.createElement('p');
+      value.className = t.valueClass;
+      value.textContent = t.value;
+      if (t.value.length > 14) value.title = t.value;
+      tile.append(label, value);
+      if (t.sub) {
+        const sub = document.createElement('p');
+        sub.className = 'text-[11px] text-slate-400 font-medium mt-0.5';
+        sub.textContent = t.sub;
+        tile.appendChild(sub);
+      }
+      el.gerencia.appendChild(tile);
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -547,6 +659,27 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       ));
     }
     body.appendChild(badges);
+
+    // Piezas Faltantes = Cantidad Total - Listos. Fila destacada para que
+    // producción vea de un vistazo cuánto le falta a la OT. Solo aplica a
+    // órdenes activas con datos numéricos de Cantidad: una OT ya
+    // Terminada no necesita este cálculo, aunque su columna Listos no se
+    // haya completado retroactivamente.
+    if (order.bucket === 'pendiente' && order.totalCantidad > 0) {
+      const isDone = order.faltantes === 0;
+      const remaining = document.createElement('div');
+      remaining.className = `flex items-center justify-between px-3 py-2 rounded-lg border ${
+        isDone ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-300'
+      }`;
+      const label = document.createElement('span');
+      label.className = 'text-[11px] font-bold uppercase tracking-wide text-slate-500';
+      label.textContent = 'Piezas Faltantes';
+      const value = document.createElement('span');
+      value.className = `text-lg font-black ${isDone ? 'text-emerald-600' : 'text-rvh-amber'}`;
+      value.textContent = isDone ? '✓ Completo' : String(order.faltantes);
+      remaining.append(label, value);
+      body.appendChild(remaining);
+    }
 
     // Items table
     const itemsWrap = document.createElement('div');
@@ -686,6 +819,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     } finally {
       resolveClientPortal();
       applyPortalMode();
+      renderGerenciaDashboard();
       if (!isClientPortal) renderMetrics();
       renderTabs();
       refreshView();
