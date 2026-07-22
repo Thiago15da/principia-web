@@ -164,6 +164,10 @@
       e.preventDefault();
       const value = el.landingInput.value.trim();
       if (!value) return;
+      if (value.toLowerCase() === 'rvh-admin') {
+        window.location.href = 'fabrica.html';
+        return;
+      }
       window.location.href = '?cliente=' + encodeURIComponent(value);
     });
     return;
