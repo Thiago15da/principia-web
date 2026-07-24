@@ -281,15 +281,18 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   }
 
   // Resuelve, contra una lista de órdenes ya cargadas, cuál cliente real
-  // matchea el parámetro ?cliente=. Coincidencia EXACTA únicamente (sin
+  // matchea el parámetro ?cliente=. Coincidencia EXACTA únicamente (nunca
   // substring/.includes()): compara contra 'Cliente' o, si la planilla la
-  // trae, contra 'ID_Cliente', ambos en minúsculas y sin espacios extra.
+  // trae, contra 'ID_Cliente'. Se usa normalizeClientKey (sin acentos, sin
+  // espacios/símbolos) en vez de sanitizeExact porque en la práctica nadie
+  // escribe tildes al buscar — pero sigue siendo estricta: no es substring,
+  // "metalurgica" matchea "Metalúrgica del Sur" completo, no "Metal".
   function matchClient(orders, rawParam) {
-    const target = sanitizeExact(rawParam);
+    const target = normalizeClientKey(rawParam);
     if (!target) return null;
     const match = orders.find(o =>
-      sanitizeExact(o.cliente) === target ||
-      (o.idCliente && sanitizeExact(o.idCliente) === target)
+      normalizeClientKey(o.cliente) === target ||
+      (o.idCliente && normalizeClientKey(o.idCliente) === target)
     );
     return match ? match.cliente : null;
   }
