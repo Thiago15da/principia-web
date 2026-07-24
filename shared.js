@@ -24,6 +24,10 @@ window.RVH = (function () {
   // en A-K es texto (SI/NO), acá es un número de piezas en esa etapa.
   const CORE_FIELDS = ['OT', 'Fecha Ingreso', 'Cliente', 'Tipo', 'Mecanizado', 'Prioridad', 'Fase de Producción', 'Status Final', 'Cantidad', 'Descripción', 'Material'];
   const STAGE_FIELDS = ['Diseño', 'Moldeo', 'Fundición', 'Mecanizado', 'Rechazados', 'Listos'];
+  // Columna opcional de código de cliente (además del nombre en
+  // "Cliente"), usada para el matcheo estricto de ?cliente=. No forma
+  // parte de A-K; si la planilla no la tiene, simplemente queda vacía.
+  const OPTIONAL_ID_FIELD = 'ID_Cliente';
   // Algunas planillas nombran la columna de cantidad distinto; si no se
   // encuentra "Cantidad" tal cual, se prueban estos alias en orden.
   const CORE_FIELD_ALIASES = { 'Cantidad': ['Cant Total', 'Cant. Total', 'Cantidad Total'] };
@@ -73,6 +77,14 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   // ni caracteres especiales, para que "Kove" o "kove s.a." matcheen igual.
   function normalizeClientKey(value) {
     return normalize(value).replace(/[^a-z0-9]/g, '');
+  }
+
+  // Sanitización para comparación EXACTA (?cliente=, código admin): solo
+  // minúsculas + trim, sin tocar guiones ni otros caracteres — a
+  // diferencia de normalizeClientKey, acá "abc-1" y "abc1" NO deben
+  // considerarse iguales.
+  function sanitizeExact(value) {
+    return (value || '').toString().trim().toLowerCase();
   }
 
   function toNumber(value) {
@@ -158,6 +170,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     const tailStart = coreIndex['Material'] === -1 ? 0 : coreIndex['Material'] + 1;
     const stageIndex = {};
     STAGE_FIELDS.forEach(name => { stageIndex[name] = findHeaderIndex(headers, name, tailStart); });
+    const idClienteIndex = findHeaderIndex(headers, OPTIONAL_ID_FIELD, 0);
 
     return rows
       .filter(r => r.some(v => v.trim() !== ''))
@@ -165,6 +178,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
         const cell = i => (i === -1 || i === undefined ? '' : (r[i] ?? '').trim());
         const obj = {};
         CORE_FIELDS.forEach(name => { obj[name] = cell(coreIndex[name]); });
+        obj[OPTIONAL_ID_FIELD] = cell(idClienteIndex);
         obj.stages = {};
         STAGE_FIELDS.forEach(name => { obj.stages[name] = cell(stageIndex[name]); });
         return obj;
@@ -175,16 +189,24 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   // rows that follow leave OT/Cliente/Fecha Ingreso/Status Final blank.
   // Fill those from the nearest row above that had them.
   function applyCarryOver(rows) {
-    let lastOT = '', lastCliente = '', lastFecha = '', lastStatus = '';
+    let lastOT = '', lastCliente = '', lastFecha = '', lastStatus = '', lastIdCliente = '';
     return rows.map(row => {
       if ((row['OT'] || '').trim()) {
         lastOT = row['OT'];
         lastCliente = row['Cliente'];
         lastFecha = row['Fecha Ingreso'];
         lastStatus = row['Status Final'];
+        lastIdCliente = row[OPTIONAL_ID_FIELD];
         return row;
       }
-      return { ...row, OT: lastOT, Cliente: lastCliente, 'Fecha Ingreso': lastFecha, 'Status Final': lastStatus };
+      return {
+        ...row,
+        OT: lastOT,
+        Cliente: lastCliente,
+        'Fecha Ingreso': lastFecha,
+        'Status Final': lastStatus,
+        [OPTIONAL_ID_FIELD]: lastIdCliente
+      };
     });
   }
 
@@ -205,6 +227,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
         map.set(otNumber, {
           otNumber,
           cliente: row['Cliente'] || 'Sin cliente',
+          idCliente: (row[OPTIONAL_ID_FIELD] || '').trim(),
           fechaIngresoRaw: (row['Fecha Ingreso'] || '').trim(),
           fechaIngresoDate: parseDDMMYYYY(row['Fecha Ingreso']),
           statusFinal: row['Status Final'] || '',
@@ -240,6 +263,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       return {
         otNumber: order.otNumber,
         cliente: order.cliente,
+        idCliente: order.idCliente,
         tipoOrigen: Array.from(order.tipoSet).filter(Boolean).join(' / ') || 'N/D',
         urgent: order.urgent,
         machining: order.machining,
@@ -257,16 +281,17 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   }
 
   // Resuelve, contra una lista de órdenes ya cargadas, cuál cliente real
-  // matchea un término de búsqueda (?cliente=...). Prioriza coincidencia
-  // exacta (evita ambigüedad si el nombre de un cliente está contenido en
-  // el de otro); si no hay, admite substring para keywords cortos.
+  // matchea el parámetro ?cliente=. Coincidencia EXACTA únicamente (sin
+  // substring/.includes()): compara contra 'Cliente' o, si la planilla la
+  // trae, contra 'ID_Cliente', ambos en minúsculas y sin espacios extra.
   function matchClient(orders, rawParam) {
-    const target = normalizeClientKey(rawParam);
+    const target = sanitizeExact(rawParam);
     if (!target) return null;
-    const exact = orders.find(o => normalizeClientKey(o.cliente) === target);
-    if (exact) return exact.cliente;
-    const partial = orders.find(o => normalizeClientKey(o.cliente).includes(target));
-    return partial ? partial.cliente : null;
+    const match = orders.find(o =>
+      sanitizeExact(o.cliente) === target ||
+      (o.idCliente && sanitizeExact(o.idCliente) === target)
+    );
+    return match ? match.cliente : null;
   }
 
   // ---------------------------------------------------------------------
@@ -440,6 +465,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     DEMO_CSV,
     normalize,
     normalizeClientKey,
+    sanitizeExact,
     debounce,
     parseCSV,
     groupOrders,

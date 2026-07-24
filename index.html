@@ -99,7 +99,16 @@
       </div>
     </section>
 
-    <!-- Vista de resultados: se muestra solo si la URL trae ?cliente=. -->
+    <!-- Código no encontrado: coincidencia estricta fallida para ?cliente=. -->
+    <section id="not-found-view" class="hidden max-w-md mx-auto mt-10 md:mt-20">
+      <div class="bg-white border border-rvh-border rounded-2xl shadow-sm p-8 text-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-500 text-2xl">⚠</div>
+        <h2 class="text-lg font-bold text-rvh-navy mb-6">Código de cliente no válido o sin trabajos activos.</h2>
+        <button id="not-found-retry" class="w-full bg-rvh-navy text-white font-bold py-3 rounded-lg hover:bg-rvh-navyLight transition shadow-sm">Volver a intentar</button>
+      </div>
+    </section>
+
+    <!-- Vista de resultados: se muestra solo si la URL trae ?cliente= y matchea. -->
     <div id="portal-view" class="hidden space-y-6">
       <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
         <span id="error-text"></span>
@@ -127,7 +136,7 @@
 (function () {
   'use strict';
 
-  const { CONFIG, TABS, DEMO_CSV, normalize, debounce, parseCSV, groupOrders, matchClient, fetchCSVText, buildCard } = window.RVH;
+  const { CONFIG, TABS, DEMO_CSV, normalize, sanitizeExact, debounce, parseCSV, groupOrders, matchClient, fetchCSVText, buildCard } = window.RVH;
 
   const clienteParam = (new URLSearchParams(window.location.search).get('cliente') || '').trim();
 
@@ -138,6 +147,8 @@
     landingView: document.getElementById('landing-view'),
     landingForm: document.getElementById('landing-form'),
     landingInput: document.getElementById('landing-input'),
+    notFoundView: document.getElementById('not-found-view'),
+    notFoundRetry: document.getElementById('not-found-retry'),
     portalView: document.getElementById('portal-view'),
     tabs: document.getElementById('tabs'),
     board: document.getElementById('board'),
@@ -164,7 +175,7 @@
       e.preventDefault();
       const value = el.landingInput.value.trim();
       if (!value) return;
-      if (value.toLowerCase() === 'rvh-admin') {
+      if (sanitizeExact(value) === 'rvh-admin') {
         window.location.href = 'fabrica.html';
         return;
       }
@@ -177,8 +188,12 @@
   // Con ?cliente=: portal filtrado. Nunca se muestra nada de otro cliente.
   // -----------------------------------------------------------------
   el.landingView.classList.add('hidden');
+  el.notFoundView.classList.add('hidden');
   el.portalView.classList.remove('hidden');
-  el.headerControls.classList.remove('hidden');
+
+  el.notFoundRetry.addEventListener('click', () => {
+    window.location.href = 'index.html';
+  });
 
   let allOrders = [];
   let clientOrders = [];
@@ -228,18 +243,13 @@
     renderBoard(getFilteredOrders());
   }
 
+  // Se llama solo cuando clientName matcheó; el caso "no encontrado" ya
+  // no usa el empty-state genérico, tiene su propia vista (#not-found-view).
   function applyClientHeader() {
-    if (clientName) {
-      el.appTitle.textContent = `Portal de Seguimiento - ${clientName}`;
-      el.appSubtitle.textContent = 'Consulta de Órdenes de Trabajo';
-      el.emptyTitle.textContent = 'No se encontraron órdenes';
-      el.emptySubtitle.textContent = 'No hay órdenes de este cliente en esta sección.';
-    } else {
-      el.appTitle.textContent = 'Portal de Seguimiento';
-      el.appSubtitle.textContent = 'Cliente no encontrado';
-      el.emptyTitle.textContent = 'Cliente no encontrado';
-      el.emptySubtitle.textContent = 'Verificá el enlace recibido o comunicate con RVH Fundición.';
-    }
+    el.appTitle.textContent = `Portal de Seguimiento - ${clientName}`;
+    el.appSubtitle.textContent = 'Consulta de Órdenes de Trabajo';
+    el.emptyTitle.textContent = 'No se encontraron órdenes';
+    el.emptySubtitle.textContent = 'No hay órdenes de este cliente en esta sección.';
   }
 
   function setStatusBar(usingDemo) {
@@ -291,13 +301,23 @@
         ? allOrders.filter(o => o.cliente === clientName)
         : [];
 
-      applyClientHeader();
-      renderTabs();
-      refreshView();
-      setStatusBar(usingDemo);
       el.loading.classList.add('hidden');
-      el.board.classList.remove('hidden');
       el.refreshIcon.classList.remove('animate-spin');
+
+      if (!clientName) {
+        el.portalView.classList.add('hidden');
+        el.headerControls.classList.add('hidden');
+        el.notFoundView.classList.remove('hidden');
+      } else {
+        el.notFoundView.classList.add('hidden');
+        el.portalView.classList.remove('hidden');
+        el.headerControls.classList.remove('hidden');
+        applyClientHeader();
+        renderTabs();
+        refreshView();
+        el.board.classList.remove('hidden');
+      }
+      setStatusBar(usingDemo);
     }
   }
 
