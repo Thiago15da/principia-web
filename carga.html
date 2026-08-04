@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RVH Fundición | Carga Diaria</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f2942">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RVH Carga">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          rvh: {
+            bg: '#f1f5f9', navy: '#0f2942', navyLight: '#1e3a8a',
+            steel: '#475569', amber: '#d97706', border: '#e2e8f0'
+          }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  /* Controles grandes: se cargan de pie en la planta, muchas veces desde el celular. */
+  .campo {
+    width: 100%; padding: 0.85rem 1rem; font-size: 1rem; font-weight: 600;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 0.6rem; outline: none;
+  }
+  .campo:focus { box-shadow: 0 0 0 3px rgba(30,58,138,.18); border-color: #1e3a8a; }
+  .chip {
+    padding: 0.7rem 0.5rem; border-radius: 0.6rem; border: 1px solid #e2e8f0;
+    background: #fff; font-weight: 700; font-size: .875rem; cursor: pointer;
+    transition: all .12s ease;
+  }
+  .chip:hover { border-color: #1e3a8a; color: #1e3a8a; }
+  .chip[aria-pressed="true"] { background: #0f2942; color: #fff; border-color: #0f2942; }
+  .toast { animation: toast-in .25s ease-out; }
+  @keyframes toast-in { from { opacity:0; transform: translateY(-8px);} to {opacity:1; transform:translateY(0);} }
+</style>
+</head>
+<body class="bg-rvh-bg text-slate-800 min-h-screen">
+
+  <header class="sticky top-0 z-20 bg-rvh-navy text-white shadow-md">
+    <div class="max-w-3xl mx-auto px-4 md:px-6 py-3 flex flex-wrap gap-3 items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="IMG_8258.png" alt="RVH Logo"
+          style="max-height: 46px; height: 46px; width: auto; object-fit: contain;"
+          class="rounded-lg bg-white/10 border border-white/20 p-1"
+          onerror="this.style.display='none';">
+        <div>
+          <h1 class="text-base md:text-lg font-bold leading-tight">Carga Diaria</h1>
+          <p class="text-[11px] text-slate-300 font-semibold uppercase tracking-wide">Parte de producción del turno</p>
+        </div>
+      </div>
+      <a href="index.html" class="px-3 py-2 rounded-lg text-sm font-bold bg-white/10 border border-white/20 hover:bg-white/20 transition">← Dashboard PCP</a>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5">
+
+    <div id="feedback" class="hidden rounded-xl px-4 py-3 text-sm font-bold toast"></div>
+
+    <form id="form-carga" class="bg-white border border-rvh-border rounded-xl shadow-sm p-5 space-y-5">
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label for="fecha" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Fecha</label>
+          <input id="fecha" name="fecha" type="date" class="campo" required>
+        </div>
+        <div>
+          <label for="equipo" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Equipo / Responsable</label>
+          <input id="equipo" name="equipo" type="text" class="campo" placeholder="Ej: Turno mañana" autocomplete="off" required>
+        </div>
+      </div>
+
+      <div>
+        <span class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Proceso</span>
+        <div id="procesos" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+        <input id="proceso" name="proceso" type="hidden" required>
+      </div>
+
+      <div>
+        <label for="ot" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Orden de Trabajo (solo activas)</label>
+        <select id="ot" name="ot" class="campo" required>
+          <option value="">Cargando órdenes...</option>
+        </select>
+        <p id="ot-detalle" class="hidden mt-2 text-xs text-slate-500 font-medium bg-slate-50 border border-rvh-border rounded-lg px-3 py-2"></p>
+      </div>
+
+      <div>
+        <label for="cantidad" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Cantidad procesada</label>
+        <input id="cantidad" name="cantidad" type="number" min="1" step="1" inputmode="numeric" class="campo" placeholder="0" required>
+      </div>
+
+      <div>
+        <label for="observaciones" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Observaciones <span class="normal-case font-medium text-slate-300">(opcional)</span></label>
+        <textarea id="observaciones" name="observaciones" rows="2" class="campo" placeholder="Rechazos, demoras, roturas..."></textarea>
+      </div>
+
+      <button id="submit-btn" type="submit"
+        class="w-full bg-rvh-navy text-white font-black text-base py-4 rounded-xl hover:bg-rvh-navyLight transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+        Guardar parte
+      </button>
+    </form>
+
+    <section id="sesion" class="hidden bg-white border border-rvh-border rounded-xl shadow-sm overflow-hidden">
+      <h2 class="px-4 py-2.5 bg-slate-50 border-b border-rvh-border text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        Cargado en esta sesión
+      </h2>
+      <div id="sesion-lista" class="divide-y divide-rvh-border"></div>
+    </section>
+  </main>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const { PROCESOS, hoyISO, cargarOrdenes, registrarCargaDiaria } = window.RVH;
+
+  const el = {
+    form: document.getElementById('form-carga'),
+    fecha: document.getElementById('fecha'),
+    equipo: document.getElementById('equipo'),
+    procesos: document.getElementById('procesos'),
+    proceso: document.getElementById('proceso'),
+    ot: document.getElementById('ot'),
+    otDetalle: document.getElementById('ot-detalle'),
+    cantidad: document.getElementById('cantidad'),
+    observaciones: document.getElementById('observaciones'),
+    submit: document.getElementById('submit-btn'),
+    feedback: document.getElementById('feedback'),
+    sesion: document.getElementById('sesion'),
+    sesionLista: document.getElementById('sesion-lista')
+  };
+
+  let activas = [];
+
+  el.fecha.value = hoyISO();
+
+  // -------------------------------------------------------------------
+  // Proceso: botones grandes en lugar de un <select>, para cargar de pie.
+  // -------------------------------------------------------------------
+  PROCESOS.forEach(nombre => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip';
+    btn.textContent = nombre;
+    btn.setAttribute('aria-pressed', 'false');
+    btn.addEventListener('click', () => {
+      el.proceso.value = nombre;
+      Array.from(el.procesos.children).forEach(b =>
+        b.setAttribute('aria-pressed', String(b === btn)));
+    });
+    el.procesos.appendChild(btn);
+  });
+
+  // -------------------------------------------------------------------
+  // OTs activas
+  // -------------------------------------------------------------------
+  function pintarDetalleOT() {
+    const orden = activas.find(o => o.otNumber === el.ot.value);
+    if (!orden) { el.otDetalle.classList.add('hidden'); return; }
+
+    el.otDetalle.textContent =
+      `${orden.cliente} · ${orden.cantidadCompletada}/${orden.cantidadTotal} pzs · faltan ${orden.faltantes}` +
+      (orden.fechaPrometida ? ` · entrega ${orden.fechaPrometida}` : '');
+    el.otDetalle.classList.remove('hidden');
+
+    // Sugerir lo que resta, para que el operario solo confirme.
+    if (!el.cantidad.value && orden.faltantes > 0) el.cantidad.max = orden.faltantes;
+  }
+
+  // `silencioso` se usa al refrescar después de guardar: sin eso, el aviso
+  // de esta recarga pisa el "parte guardado" y el operario cree que falló.
+  async function cargarOTs({ silencioso } = {}) {
+    const resultado = await cargarOrdenes();
+    activas = resultado.ordenes.filter(o => o.activa);
+
+    el.ot.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = activas.length ? 'Seleccioná una OT...' : 'No hay órdenes activas';
+    el.ot.appendChild(placeholder);
+
+    activas.forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.otNumber;
+      const marca = o.semaforo.color === 'rojo' ? '🔴 ' : (o.semaforo.color === 'amarillo' ? '🟡 ' : '');
+      opt.textContent = `${marca}${o.otNumber} — ${o.cliente} (faltan ${o.faltantes})`;
+      el.ot.appendChild(opt);
+    });
+
+    if (resultado.demo && !silencioso) {
+      mostrarFeedback('Sin conexión con la planilla: se están mostrando datos de demostración.', 'alerta');
+    }
+  }
+
+  el.ot.addEventListener('change', pintarDetalleOT);
+
+  // -------------------------------------------------------------------
+  // Feedback
+  // -------------------------------------------------------------------
+  function mostrarFeedback(mensaje, tipo) {
+    const estilos = {
+      ok: 'bg-emerald-50 border border-emerald-200 text-emerald-700',
+      error: 'bg-red-50 border border-red-200 text-red-700',
+      alerta: 'bg-amber-50 border border-amber-200 text-amber-700'
+    };
+    el.feedback.className = `rounded-xl px-4 py-3 text-sm font-bold toast ${estilos[tipo] || estilos.ok}`;
+    el.feedback.textContent = mensaje;
+    el.feedback.classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function agregarASesion(registro, orden) {
+    el.sesion.classList.remove('hidden');
+    const fila = document.createElement('div');
+    fila.className = 'px-4 py-2.5 text-sm flex items-center justify-between gap-3';
+
+    const izq = document.createElement('div');
+    const t1 = document.createElement('p');
+    t1.className = 'font-bold text-slate-700';
+    t1.textContent = `${registro.id_ot} · ${registro.proceso}`;
+    const t2 = document.createElement('p');
+    t2.className = 'text-[11px] text-slate-400';
+    t2.textContent = `${orden ? orden.cliente + ' · ' : ''}${registro.fecha} · ${registro.equipo || 's/equipo'}`;
+    izq.append(t1, t2);
+
+    const der = document.createElement('span');
+    der.className = 'font-black text-emerald-600 shrink-0';
+    der.textContent = `+${registro.cantidad_procesada}`;
+
+    fila.append(izq, der);
+    el.sesionLista.prepend(fila);
+  }
+
+  // -------------------------------------------------------------------
+  // Guardar
+  // -------------------------------------------------------------------
+  el.form.addEventListener('submit', async e => {
+    e.preventDefault();
+
+    if (!el.proceso.value) {
+      mostrarFeedback('Elegí el proceso.', 'error');
+      return;
+    }
+    const cantidad = Number(el.cantidad.value);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      mostrarFeedback('La cantidad procesada debe ser mayor a 0.', 'error');
+      return;
+    }
+
+    const orden = activas.find(o => o.otNumber === el.ot.value);
+
+    // Aviso, no bloqueo: puede haber reposiciones legítimas por sobre lo pedido.
+    if (orden && cantidad > orden.faltantes && orden.faltantes > 0) {
+      const seguir = window.confirm(
+        `Estás cargando ${cantidad} piezas pero a la ${orden.otNumber} solo le faltan ${orden.faltantes}. ¿Guardar igual?`
+      );
+      if (!seguir) return;
+    }
+
+    const datos = {
+      fecha: el.fecha.value,
+      id_ot: el.ot.value,
+      proceso: el.proceso.value,
+      equipo: el.equipo.value.trim(),
+      cantidad_procesada: cantidad,
+      observaciones: el.observaciones.value.trim()
+    };
+
+    el.submit.disabled = true;
+    el.submit.textContent = 'Guardando...';
+
+    try {
+      const resp = await registrarCargaDiaria(datos);
+      mostrarFeedback(
+        `Parte guardado: ${resp.cantidad_procesada} pzs en ${datos.id_ot}. Avance ${resp.cantidad_completada}${orden ? '/' + orden.cantidadTotal : ''}.`,
+        'ok'
+      );
+      agregarASesion(Object.assign({}, datos, { id: resp.id }), orden);
+
+      // Se limpia solo lo puntual del registro: fecha, equipo y proceso
+      // se reutilizan para cargar varias OTs seguidas del mismo turno.
+      el.cantidad.value = '';
+      el.observaciones.value = '';
+      el.ot.value = '';
+      el.otDetalle.classList.add('hidden');
+
+      await cargarOTs({ silencioso: true });
+    } catch (err) {
+      mostrarFeedback(err.message || 'No se pudo guardar el parte.', 'error');
+    } finally {
+      el.submit.disabled = false;
+      el.submit.textContent = 'Guardar parte';
+    }
+  });
+
+  cargarOTs();
+})();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js').catch(err => console.error('SW:', err));
+    });
+  }
+</script>
+</body>
+</html>

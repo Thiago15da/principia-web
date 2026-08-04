@@ -1,10 +1,10 @@
 'use strict';
 
-const CACHE_NAME = 'rvh-produccion-static-v2';
+const CACHE_NAME = 'rvh-pcp-static-v3';
 const STATIC_ASSETS = [
   './',
   './index.html',
-  './fabrica.html',
+  './carga.html',
   './shared.js',
   './manifest.json',
   './IMG_8258.png',
@@ -32,16 +32,23 @@ self.addEventListener('activate', event => {
   );
 });
 
-// La planilla de Google Sheets es la fuente de datos de producción: nunca
-// debe servirse desde caché, siempre tiene que ir a la red para traer el
-// estado real y actual de las órdenes de trabajo.
+// La planilla (lectura) y el Apps Script (escritura de partes diarios) son
+// datos de producción: nunca deben servirse desde caché. Siempre a la red,
+// para trabajar contra el estado real de las órdenes.
 function isProductionDataRequest(url) {
-  return url.hostname === 'docs.google.com' || url.hostname.endsWith('.googleusercontent.com');
+  return url.hostname === 'docs.google.com'
+    || url.hostname === 'script.google.com'
+    || url.hostname.endsWith('.googleusercontent.com');
 }
 
 self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
+
+  // Las escrituras (POST del parte diario al Apps Script) pasan derecho al
+  // navegador. No hay nada que cachear y reenviarlas desde el service worker
+  // solo agrega un punto de falla sobre el dato más sensible del sistema.
+  if (request.method !== 'GET') return;
 
   if (isProductionDataRequest(url)) {
     event.respondWith(fetch(request, { cache: 'no-store' }));
@@ -49,7 +56,7 @@ self.addEventListener('fetch', event => {
   }
 
   // Solo cacheamos nuestros propios assets estáticos (GET, mismo origen).
-  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin) return;
 
   // Stale-while-revalidate: responde rápido con lo cacheado si existe,
   // y de fondo actualiza la caché con la versión más nueva del asset.

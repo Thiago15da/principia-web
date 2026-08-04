@@ -3,14 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RVH Fundición | Portal de Seguimiento</title>
+<title>RVH Fundición | Dashboard PCP</title>
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f2942">
-
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="RVH Producción">
+<meta name="apple-mobile-web-app-title" content="RVH PCP">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
 <script src="https://cdn.tailwindcss.com"></script>
@@ -20,12 +19,8 @@
       extend: {
         colors: {
           rvh: {
-            bg: '#f1f5f9',
-            navy: '#0f2942',
-            navyLight: '#1e3a8a',
-            steel: '#475569',
-            amber: '#d97706',
-            border: '#e2e8f0'
+            bg: '#f1f5f9', navy: '#0f2942', navyLight: '#1e3a8a',
+            steel: '#475569', amber: '#d97706', border: '#e2e8f0'
           }
         }
       }
@@ -36,98 +31,81 @@
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
-  .card-enter { animation: card-in .25s ease-out; }
-  @keyframes card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .row-enter { animation: row-in .2s ease-out; }
+  @keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   .spinner { border: 3px solid #e2e8f0; border-top-color: #d97706; border-radius: 50%; width: 28px; height: 28px; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .pulse-critico { animation: pulso 2s ease-in-out infinite; }
+  @keyframes pulso { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 </style>
 </head>
 <body class="bg-rvh-bg text-slate-800 min-h-screen">
 
   <header class="sticky top-0 z-20 bg-rvh-navy text-white shadow-md">
-    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-3 flex flex-wrap gap-4 items-center justify-between">
       <div class="flex items-center gap-3">
         <img src="IMG_8258.png" alt="RVH Logo"
-          style="max-height: 50px; height: 50px; width: auto; object-fit: contain;"
+          style="max-height: 46px; height: 46px; width: auto; object-fit: contain;"
           class="rounded-lg bg-white/10 border border-white/20 p-1"
           onerror="this.style.display='none';">
         <div>
-          <h1 id="app-title" class="text-lg md:text-xl font-bold leading-tight">RVH Fundición</h1>
-          <p id="app-subtitle" class="text-xs text-slate-300 font-semibold uppercase tracking-wide">Portal de Seguimiento de Pedidos</p>
+          <h1 class="text-base md:text-lg font-bold leading-tight">Planeamiento y Control de Producción</h1>
+          <p class="text-[11px] text-slate-300 font-semibold uppercase tracking-wide">RVH Fundición &middot; Prioridad del día</p>
         </div>
       </div>
 
-      <div id="header-controls" class="hidden flex-1 md:flex-none items-center gap-3 md:max-w-md">
-        <div class="relative flex-1">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
-          </svg>
-          <input id="search-input" type="text" placeholder="Buscar por OT o descripción..."
-            class="w-full bg-white text-slate-800 border border-white/20 rounded-lg py-2.5 pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-rvh-amber/60 placeholder:text-slate-400">
-          <button id="clear-search" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-        <button id="refresh-btn" title="Actualizar ahora"
-          class="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition">
+      <nav class="flex items-center gap-2">
+        <span class="px-3 py-2 rounded-lg text-sm font-bold bg-white text-rvh-navy shadow-sm">Dashboard PCP</span>
+        <a href="carga.html" class="px-3 py-2 rounded-lg text-sm font-bold bg-white/10 border border-white/20 hover:bg-white/20 transition">+ Carga Diaria</a>
+        <button id="refresh-btn" title="Actualizar"
+          class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition">
           <svg id="refresh-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114.9-3.4M20 15a8 8 0 01-14.9 3.4" />
           </svg>
         </button>
-      </div>
+      </nav>
     </div>
     <div id="status-bar" class="max-w-[1600px] mx-auto px-4 md:px-6 pb-2.5 text-xs text-slate-300 flex items-center gap-2"></div>
   </header>
 
-  <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-6">
+  <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-5">
 
-    <!-- Pantalla de inicio: se muestra solo si la URL no trae ?cliente=.
-         No se carga ningún dato de la planilla acá. -->
-    <section id="landing-view" class="max-w-md mx-auto mt-10 md:mt-20">
-      <div class="bg-white border border-rvh-border rounded-2xl shadow-sm p-8 text-center">
-        <img src="IMG_8258.png" alt="RVH Logo"
-          style="max-height: 70px; height: 70px; width: auto; object-fit: contain; margin: 0 auto 1.25rem;"
-          onerror="this.style.display='none';">
-        <h2 class="text-xl font-bold text-rvh-navy mb-1">Consultá tus órdenes</h2>
-        <p class="text-sm text-slate-500 mb-6">Ingresá el nombre o código de tu empresa para ver el estado de tus pedidos en RVH Fundición.</p>
-        <form id="landing-form" class="flex flex-col gap-3">
-          <input id="landing-input" type="text" placeholder="Ingrese su código de cliente"
-            class="w-full px-4 py-3 bg-rvh-bg border border-rvh-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-rvh-navyLight/50 placeholder:text-slate-400"
-            required>
-          <button type="submit" class="w-full bg-rvh-navy text-white font-bold py-3 rounded-lg hover:bg-rvh-navyLight transition shadow-sm">Buscar</button>
-        </form>
+    <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+      <span id="error-text"></span>
+      <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-900">Reintentar</button>
+    </div>
+
+    <section id="kpis" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></section>
+
+    <div class="flex flex-wrap gap-3 items-center justify-between">
+      <div class="relative flex-1 min-w-[240px] max-w-md">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+        </svg>
+        <input id="search-input" type="text" placeholder="Buscar por OT, cliente, pieza o material..."
+          class="w-full bg-white border border-rvh-border rounded-lg py-2.5 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-rvh-navyLight/40 placeholder:text-slate-400">
       </div>
+      <label class="flex items-center gap-2 text-sm font-semibold text-slate-600 cursor-pointer select-none">
+        <input id="toggle-terminadas" type="checkbox" class="w-4 h-4 accent-rvh-navy">
+        Mostrar terminadas
+      </label>
+    </div>
+
+    <div id="loading-state" class="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+      <div class="spinner"></div>
+      <p class="text-sm">Cargando órdenes de trabajo...</p>
+    </div>
+
+    <section id="tabla" class="hidden bg-white border border-rvh-border rounded-xl shadow-sm overflow-hidden">
+      <div class="hidden lg:grid grid-cols-[9rem_1fr_7rem_7rem_10rem_8rem] gap-3 px-4 py-2.5 bg-slate-50 border-b border-rvh-border text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        <span>Prioridad</span><span>OT / Cliente / Piezas</span><span>Ingreso</span><span>Prometida</span><span>Avance</span><span>Estado</span>
+      </div>
+      <div id="filas" class="divide-y divide-rvh-border"></div>
     </section>
 
-    <!-- Código no encontrado: coincidencia estricta fallida para ?cliente=. -->
-    <section id="not-found-view" class="hidden max-w-md mx-auto mt-10 md:mt-20">
-      <div class="bg-white border border-rvh-border rounded-2xl shadow-sm p-8 text-center">
-        <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-500 text-2xl">⚠</div>
-        <h2 class="text-lg font-bold text-rvh-navy mb-6">Código de cliente no válido o sin trabajos activos.</h2>
-        <button id="not-found-retry" class="w-full bg-rvh-navy text-white font-bold py-3 rounded-lg hover:bg-rvh-navyLight transition shadow-sm">Volver a intentar</button>
-      </div>
-    </section>
-
-    <!-- Vista de resultados: se muestra solo si la URL trae ?cliente= y matchea. -->
-    <div id="portal-view" class="hidden space-y-6">
-      <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
-        <span id="error-text"></span>
-        <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-900">Reintentar</button>
-      </div>
-
-      <div id="tabs" class="flex flex-wrap gap-2"></div>
-
-      <div id="loading-state" class="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
-        <div class="spinner"></div>
-        <p class="text-sm">Cargando órdenes de trabajo...</p>
-      </div>
-
-      <div id="board" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
-
-      <div id="empty-state" class="hidden text-center py-24 text-slate-400">
-        <p id="empty-title" class="text-lg font-bold text-slate-500">No se encontraron órdenes</p>
-        <p id="empty-subtitle" class="text-sm mt-1">Probá con otro término de búsqueda o cambiá de sección.</p>
-      </div>
+    <div id="empty-state" class="hidden text-center py-24 text-slate-400">
+      <p class="text-lg font-bold text-slate-500">Sin órdenes para mostrar</p>
+      <p class="text-sm mt-1">Ajustá la búsqueda o revisá la planilla de producción.</p>
     </div>
   </main>
 
@@ -136,215 +114,233 @@
 (function () {
   'use strict';
 
-  const { CONFIG, TABS, DEMO_CSV, normalize, sanitizeExact, debounce, parseCSV, groupOrders, matchClient, fetchCSVText, buildCard } = window.RVH;
-
-  const clienteParam = (new URLSearchParams(window.location.search).get('cliente') || '').trim();
+  const { CONFIG, SEMAFORO_UI, normalize, debounce, cargarOrdenes } = window.RVH;
 
   const el = {
-    appTitle: document.getElementById('app-title'),
-    appSubtitle: document.getElementById('app-subtitle'),
-    headerControls: document.getElementById('header-controls'),
-    landingView: document.getElementById('landing-view'),
-    landingForm: document.getElementById('landing-form'),
-    landingInput: document.getElementById('landing-input'),
-    notFoundView: document.getElementById('not-found-view'),
-    notFoundRetry: document.getElementById('not-found-retry'),
-    portalView: document.getElementById('portal-view'),
-    tabs: document.getElementById('tabs'),
-    board: document.getElementById('board'),
+    kpis: document.getElementById('kpis'),
+    tabla: document.getElementById('tabla'),
+    filas: document.getElementById('filas'),
     loading: document.getElementById('loading-state'),
     empty: document.getElementById('empty-state'),
-    emptyTitle: document.getElementById('empty-title'),
-    emptySubtitle: document.getElementById('empty-subtitle'),
     errorBanner: document.getElementById('error-banner'),
     errorText: document.getElementById('error-text'),
     errorRetry: document.getElementById('error-retry'),
     search: document.getElementById('search-input'),
-    clearSearch: document.getElementById('clear-search'),
+    toggleTerminadas: document.getElementById('toggle-terminadas'),
     refreshBtn: document.getElementById('refresh-btn'),
     refreshIcon: document.getElementById('refresh-icon'),
     statusBar: document.getElementById('status-bar')
   };
 
-  // -----------------------------------------------------------------
-  // Sin ?cliente=: pantalla de búsqueda, sin tocar la planilla.
-  // -----------------------------------------------------------------
-  if (!clienteParam) {
-    el.landingInput.focus();
-    el.landingForm.addEventListener('submit', e => {
-      e.preventDefault();
-      const value = el.landingInput.value.trim();
-      if (!value) return;
-      if (sanitizeExact(value) === 'rvh-admin') {
-        window.location.href = 'fabrica.html';
-        return;
-      }
-      window.location.href = '?cliente=' + encodeURIComponent(value);
+  let ordenes = [];
+
+  // -------------------------------------------------------------------
+  // KPIs
+  // -------------------------------------------------------------------
+  function renderKpis() {
+    const activas = ordenes.filter(o => o.activa);
+    const criticas = activas.filter(o => o.semaforo.color === 'rojo').length;
+    const alertas = activas.filter(o => o.semaforo.color === 'amarillo').length;
+    const piezasPendientes = activas.reduce((s, o) => s + o.faltantes, 0);
+
+    const tiles = [
+      { label: 'OT Activas', valor: activas.length, clase: 'text-rvh-navy' },
+      { label: '🔴 Críticas', valor: criticas, clase: criticas > 0 ? 'text-red-600' : 'text-slate-400' },
+      { label: '🟡 En alerta', valor: alertas, clase: alertas > 0 ? 'text-amber-600' : 'text-slate-400' },
+      { label: 'Piezas pendientes', valor: piezasPendientes, clase: 'text-rvh-navyLight' }
+    ];
+
+    el.kpis.innerHTML = '';
+    tiles.forEach(t => {
+      const box = document.createElement('div');
+      box.className = 'bg-white border border-rvh-border rounded-xl shadow-sm px-4 py-3.5';
+      const lab = document.createElement('p');
+      lab.className = 'text-[11px] font-bold uppercase tracking-wide text-slate-400';
+      lab.textContent = t.label;
+      const val = document.createElement('p');
+      val.className = `text-2xl font-black mt-1 ${t.clase}`;
+      val.textContent = t.valor;
+      box.append(lab, val);
+      el.kpis.appendChild(box);
     });
-    return;
   }
 
-  // -----------------------------------------------------------------
-  // Con ?cliente=: portal filtrado. Nunca se muestra nada de otro cliente.
-  // -----------------------------------------------------------------
-  el.landingView.classList.add('hidden');
-  el.notFoundView.classList.add('hidden');
-  el.portalView.classList.remove('hidden');
+  // -------------------------------------------------------------------
+  // Filas
+  // -------------------------------------------------------------------
+  function celda(texto, clases) {
+    const s = document.createElement('span');
+    s.className = clases;
+    s.textContent = texto;
+    return s;
+  }
 
-  el.notFoundRetry.addEventListener('click', () => {
-    window.location.href = 'index.html';
-  });
+  function barraAvance(orden) {
+    const wrap = document.createElement('div');
+    wrap.className = 'w-full';
 
-  let allOrders = [];
-  let clientOrders = [];
-  let clientName = null;
-  let activeTab = 'pendiente';
+    const barra = document.createElement('div');
+    barra.className = 'h-2 w-full bg-slate-200 rounded-full overflow-hidden';
+    const relleno = document.createElement('div');
+    relleno.className = `h-full rounded-full ${orden.avance >= 100 ? 'bg-emerald-500' : 'bg-rvh-navyLight'}`;
+    relleno.style.width = orden.avance + '%';
+    barra.appendChild(relleno);
 
-  function getFilteredOrders() {
-    const bucketOrders = clientOrders.filter(o => o.bucket === activeTab);
+    const txt = document.createElement('p');
+    txt.className = 'text-[11px] font-bold text-slate-500 mt-1';
+    txt.textContent = `${orden.cantidadCompletada} / ${orden.cantidadTotal} pzs · ${orden.avance}%`;
+
+    wrap.append(barra, txt);
+
+    if (orden.avancePendiente) {
+      const aviso = document.createElement('p');
+      aviso.className = 'text-[10px] text-amber-600 font-bold';
+      aviso.textContent = 'Sincronizando…';
+      wrap.appendChild(aviso);
+    }
+    return wrap;
+  }
+
+  function buildFila(orden) {
+    const ui = SEMAFORO_UI[orden.semaforo.color];
+
+    const fila = document.createElement('div');
+    fila.className = `row-enter grid grid-cols-1 lg:grid-cols-[9rem_1fr_7rem_7rem_10rem_8rem] gap-3 px-4 py-3 items-center hover:bg-slate-50 transition ${ui.borde}`;
+
+    // Prioridad
+    const prio = document.createElement('div');
+    prio.className = 'flex items-center gap-2';
+    const punto = document.createElement('span');
+    punto.className = `w-2.5 h-2.5 rounded-full shrink-0 ${ui.punto} ${orden.semaforo.color === 'rojo' ? 'pulse-critico' : ''}`;
+    const prioTxt = document.createElement('div');
+    const etiqueta = document.createElement('p');
+    etiqueta.className = 'text-[11px] font-black tracking-wide text-slate-700';
+    etiqueta.textContent = ui.etiqueta;
+    const motivo = document.createElement('p');
+    motivo.className = 'text-[10px] text-slate-500 font-medium';
+    motivo.textContent = orden.semaforo.motivo;
+    prioTxt.append(etiqueta, motivo);
+    prio.append(punto, prioTxt);
+    fila.appendChild(prio);
+
+    // OT / Cliente / Piezas
+    const info = document.createElement('div');
+    const linea1 = document.createElement('p');
+    linea1.className = 'font-black text-slate-800 text-sm';
+    linea1.textContent = orden.otNumber;
+    if (orden.urgent) {
+      const urg = document.createElement('span');
+      urg.className = 'ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rvh-amber text-white align-middle';
+      urg.textContent = 'URGENTE';
+      linea1.appendChild(urg);
+    }
+    const linea2 = document.createElement('p');
+    linea2.className = 'text-xs text-slate-600 font-semibold';
+    linea2.textContent = orden.cliente;
+    const linea3 = document.createElement('p');
+    linea3.className = 'text-[11px] text-slate-400 truncate';
+    linea3.title = `${orden.piezasDescripcion} — ${orden.materiales}`;
+    linea3.textContent = [orden.piezasDescripcion, orden.materiales].filter(Boolean).join(' · ');
+    info.append(linea1, linea2, linea3);
+    fila.appendChild(info);
+
+    // Fechas
+    fila.appendChild(celda(orden.fechaIngreso || '—', 'text-xs text-slate-500 font-medium'));
+    fila.appendChild(celda(
+      orden.fechaPrometida || 'sin fecha',
+      `text-xs font-bold ${orden.fechaPrometida ? 'text-slate-700' : 'text-slate-300 italic'}`
+    ));
+
+    // Avance
+    fila.appendChild(barraAvance(orden));
+
+    // Estado
+    const estado = document.createElement('span');
+    estado.className = `inline-flex items-center justify-center px-2 py-1 rounded-md text-[11px] font-bold border w-fit ${ui.chip}`;
+    estado.textContent = orden.estado;
+    fila.appendChild(estado);
+
+    return fila;
+  }
+
+  // -------------------------------------------------------------------
+  // Filtro y render
+  // -------------------------------------------------------------------
+  function visibles() {
+    const incluirTerminadas = el.toggleTerminadas.checked;
+    let lista = incluirTerminadas ? ordenes : ordenes.filter(o => o.activa);
+
     const q = normalize(el.search.value);
-    if (!q) return bucketOrders;
-    return bucketOrders.filter(order => {
-      const haystack = normalize([order.otNumber, ...order.items.map(i => i.descripcion)].join(' '));
-      return haystack.includes(q);
-    });
+    if (!q) return lista;
+
+    return lista.filter(o => normalize([
+      o.otNumber, o.cliente, o.piezasDescripcion, o.materiales
+    ].join(' ')).includes(q));
   }
 
-  function renderTabs() {
-    el.tabs.innerHTML = '';
-    TABS.forEach(tab => {
-      const count = clientOrders.filter(o => o.bucket === tab.id).length;
-      const isActive = tab.id === activeTab;
-      const btn = document.createElement('button');
-      btn.className = `px-4 py-2.5 rounded-lg text-sm font-bold border transition ${
-        isActive
-          ? 'bg-rvh-navy text-white border-rvh-navy shadow-sm'
-          : 'bg-white text-slate-600 border-rvh-border hover:border-rvh-navyLight hover:text-rvh-navyLight'
-      }`;
-      btn.textContent = `${tab.label} (${count})`;
-      btn.addEventListener('click', () => {
-        if (activeTab === tab.id) return;
-        activeTab = tab.id;
-        renderTabs();
-        refreshView();
-      });
-      el.tabs.appendChild(btn);
-    });
+  function render() {
+    const lista = visibles();
+    el.filas.innerHTML = '';
+    lista.forEach(o => el.filas.appendChild(buildFila(o)));
+
+    el.tabla.classList.toggle('hidden', lista.length === 0);
+    el.empty.classList.toggle('hidden', lista.length !== 0);
+    renderKpis();
   }
 
-  function renderBoard(orders) {
-    el.board.innerHTML = '';
-    orders.forEach(order => el.board.appendChild(buildCard(order)));
-    el.board.classList.toggle('hidden', orders.length === 0);
-    el.empty.classList.toggle('hidden', orders.length !== 0);
-  }
-
-  function refreshView() {
-    renderBoard(getFilteredOrders());
-  }
-
-  // Se llama solo cuando clientName matcheó; el caso "no encontrado" ya
-  // no usa el empty-state genérico, tiene su propia vista (#not-found-view).
-  function applyClientHeader() {
-    el.appTitle.textContent = `Portal de Seguimiento - ${clientName}`;
-    el.appSubtitle.textContent = 'Consulta de Órdenes de Trabajo';
-    el.emptyTitle.textContent = 'No se encontraron órdenes';
-    el.emptySubtitle.textContent = 'No hay órdenes de este cliente en esta sección.';
-  }
-
-  function setStatusBar(usingDemo) {
-    const now = new Date();
-    const time = now.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' });
+  // -------------------------------------------------------------------
+  // Carga
+  // -------------------------------------------------------------------
+  function setStatusBar(demo) {
+    const hora = new Date().toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' });
     el.statusBar.innerHTML = '';
     const dot = document.createElement('span');
-    dot.className = `w-1.5 h-1.5 rounded-full inline-block ${usingDemo ? 'bg-amber-400' : 'bg-emerald-400'}`;
-    el.statusBar.appendChild(dot);
-    const text = document.createElement('span');
-    text.textContent = usingDemo
-      ? `Modo demostración (sin conexión a la planilla) · Actualizado ${time}`
-      : `Datos en vivo · Actualizado ${time}`;
-    el.statusBar.appendChild(text);
+    dot.className = `w-1.5 h-1.5 rounded-full inline-block ${demo ? 'bg-amber-400' : 'bg-emerald-400'}`;
+    const txt = document.createElement('span');
+    txt.textContent = demo
+      ? `Modo demostración (sin conexión a la planilla) · ${hora}`
+      : `Datos en vivo · Actualizado ${hora}`;
+    el.statusBar.append(dot, txt);
   }
 
-  function showError(message) {
-    el.errorText.textContent = message;
-    el.errorBanner.classList.remove('hidden');
-  }
-  function hideError() {
-    el.errorBanner.classList.add('hidden');
-  }
-
-  async function loadData({ silent } = {}) {
+  async function cargar({ silent } = {}) {
     if (!silent) {
       el.loading.classList.remove('hidden');
-      el.board.classList.add('hidden');
+      el.tabla.classList.add('hidden');
       el.empty.classList.add('hidden');
     }
     el.refreshIcon.classList.add('animate-spin');
 
-    let usingDemo = false;
-    try {
-      const text = await fetchCSVText(CONFIG.CSV_URL);
-      allOrders = groupOrders(parseCSV(text));
-      hideError();
-    } catch (err) {
-      if (allOrders.length === 0) {
-        allOrders = groupOrders(parseCSV(DEMO_CSV));
-        usingDemo = true;
-      }
-      showError(err.message || 'Error al cargar los datos.');
-    } finally {
-      // Filtro estricto: solo las órdenes del cliente que matcheó quedan
-      // en memoria para renderizar. Nada de otros clientes se procesa acá.
-      clientName = matchClient(allOrders, clienteParam);
-      clientOrders = clientName
-        ? allOrders.filter(o => o.cliente === clientName)
-        : [];
+    const resultado = await cargarOrdenes();
+    ordenes = resultado.ordenes;
 
-      el.loading.classList.add('hidden');
-      el.refreshIcon.classList.remove('animate-spin');
-
-      if (!clientName) {
-        el.portalView.classList.add('hidden');
-        el.headerControls.classList.add('hidden');
-        el.notFoundView.classList.remove('hidden');
-      } else {
-        el.notFoundView.classList.add('hidden');
-        el.portalView.classList.remove('hidden');
-        el.headerControls.classList.remove('hidden');
-        applyClientHeader();
-        renderTabs();
-        refreshView();
-        el.board.classList.remove('hidden');
-      }
-      setStatusBar(usingDemo);
+    if (resultado.demo) {
+      el.errorText.textContent = resultado.error || 'No se pudo conectar con la planilla.';
+      el.errorBanner.classList.remove('hidden');
+    } else {
+      el.errorBanner.classList.add('hidden');
     }
+
+    el.loading.classList.add('hidden');
+    el.refreshIcon.classList.remove('animate-spin');
+    setStatusBar(resultado.demo);
+    render();
   }
 
-  el.search.addEventListener('input', debounce(() => {
-    el.clearSearch.classList.toggle('hidden', el.search.value.trim() === '');
-    refreshView();
-  }, 150));
+  el.search.addEventListener('input', debounce(render, 150));
+  el.toggleTerminadas.addEventListener('change', render);
+  el.refreshBtn.addEventListener('click', () => cargar());
+  el.errorRetry.addEventListener('click', () => cargar());
 
-  el.clearSearch.addEventListener('click', () => {
-    el.search.value = '';
-    el.clearSearch.classList.add('hidden');
-    refreshView();
-    el.search.focus();
-  });
-
-  el.refreshBtn.addEventListener('click', () => loadData());
-  el.errorRetry.addEventListener('click', () => loadData());
-
-  loadData();
-  setInterval(() => loadData({ silent: true }), CONFIG.REFRESH_MS);
+  cargar();
+  setInterval(() => cargar({ silent: true }), CONFIG.REFRESH_MS);
 })();
 </script>
 
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js').catch(err => console.error('Error al registrar el service worker:', err));
+      navigator.serviceWorker.register('service-worker.js').catch(err => console.error('SW:', err));
     });
   }
 </script>

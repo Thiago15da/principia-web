@@ -1,11 +1,19 @@
 {
-  "name": "RVH Fundición - Control de Producción",
-  "short_name": "RVH Producción",
+  "name": "RVH Fundición - Control de Producción (PCP)",
+  "short_name": "RVH PCP",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#0f2942",
   "orientation": "portrait-primary",
+  "shortcuts": [
+    {
+      "name": "Carga Diaria",
+      "short_name": "Carga",
+      "description": "Cargar el parte de producción del turno",
+      "url": "./carga.html"
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon-192.png",
