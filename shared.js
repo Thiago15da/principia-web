@@ -29,13 +29,78 @@ window.RVH = (function () {
   const PROCESOS = ['Carpintería', 'Moldeo', 'Fundición', 'Terminación'];
   const ESTADOS = ['A realizar', 'En proceso', 'Terminado'];
 
+  // Recorrido productivo de un pedido. Cada fase, al marcarse, estampa su
+  // fecha en la columna homónima de la planilla: eso es lo que después
+  // permite medir cuánto tardó cada etapa.
+  const FASES = ['Por cargar', 'Modelería', 'Moldeo', 'Colada', 'Terminación', 'Despacho', 'Entregado'];
+  const FASES_CERRADAS = ['Entregado', 'Cancelado'];
+  // Las seis que se estampan (todas menos "Por cargar", que es el estado inicial).
+  const FASES_ESTAMPABLES = FASES.slice(1);
+  // Columna de planilla donde vive la fecha de cada fase. Van prefijadas
+  // porque "Moldeo" y "Terminación" ya existen como columnas de cantidad
+  // por etapa (L-Q) y si compartieran nombre una pisaría a la otra.
+  const columnaFase = fase => 'Fecha ' + fase;
+
+  // Umbrales del semáforo cuando el pedido no tiene fecha comprometida:
+  // se cae a la antigüedad desde el ingreso.
+  const DIAS_SIN_COMPROMISO = { rojo: 30, ambar: 15 };
+
+  // Maestro de materiales: alias tal como se escribe en planilla -> [normalizado, familia].
+  // Derivado de los 239 pedidos del histórico; hace que "ASTM A48" y
+  // "Hierro Fundido" cuenten como el mismo material sin perder el original.
+  const MAESTRO_MATERIALES = {
+    "AISI 1045": ["AISI 1045 (carbono medio)", "Acero"],
+    "AISI 4120 + Si": ["AISI 4120+Si (aleado)", "Acero"],
+    "ASTM 128": ["ASTM A128 (austenítico al Mn)", "Acero"],
+    "ASTM 36": ["ASTM A36 (carbono estructural)", "Acero"],
+    "ASTM A128": ["ASTM A128 (austenítico al Mn)", "Acero"],
+    "ASTM A48": ["ASTM A48 (fundición gris)", "Hierro fundido"],
+    "ASTM A532": ["ASTM A532 (blanca antiabrasiva)", "Hierro fundido"],
+    "Acero": ["Acero (sin norma indicada)", "Acero"],
+    "Acero 1020": ["AISI 1020 (bajo carbono)", "Acero"],
+    "Acero 1045": ["AISI 1045 (carbono medio)", "Acero"],
+    "Acero 4140": ["AISI 4140 (aleado bonificable)", "Acero"],
+    "Acero Manganeso": ["ASTM A128 (austenítico al Mn)", "Acero"],
+    "Acero SAE 1045": ["AISI 1045 (carbono medio)", "Acero"],
+    "Acero SAE 4140": ["AISI 4140 (aleado bonificable)", "Acero"],
+    "Acero al Manganeso": ["ASTM A128 (austenítico al Mn)", "Acero"],
+    "Acero inoxidable": ["Inoxidable (sin norma indicada)", "Acero"],
+    "Aluminio": ["Aluminio (sin norma indicada)", "Aluminio"],
+    "Bronce": ["Bronce SAE 65", "Bronce"],
+    "Bronce SAE 65": ["Bronce SAE 65", "Bronce"],
+    "Bronce al aluminio": ["Bronce al aluminio", "Bronce"],
+    "Fundición Gris": ["ASTM A48 (fundición gris)", "Hierro fundido"],
+    "Fundición Nodular": ["ASTM A536 (nodular)", "Hierro fundido"],
+    "Hierro Fundido": ["Sin norma indicada", "Hierro fundido"],
+    "Hierro Nodular": ["ASTM A536 (nodular)", "Hierro fundido"],
+    "Hierro gris": ["ASTM A48 (fundición gris)", "Hierro fundido"],
+    "Madera": ["Modelo de madera", "Modelo (madera)"],
+    "Modelo": ["Modelo de madera", "Modelo (madera)"],
+    "SAE 65": ["Bronce SAE 65", "Bronce"],
+    "Acero Inox 304": ["AISI 304 (inoxidable)", "Acero"],
+    "Nodular": ["ASTM A536 (nodular)", "Hierro fundido"]
+  };
+
+  // Índice normalizado (sin acentos ni mayúsculas) para que la búsqueda
+  // en el maestro no dependa de cómo se escribió el material ese día.
+  const INDICE_MATERIALES = (() => {
+    const idx = {};
+    Object.keys(MAESTRO_MATERIALES).forEach(alias => {
+      idx[alias.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()] = MAESTRO_MATERIALES[alias];
+    });
+    return idx;
+  })();
+
   // Columnas fijas de la planilla de OTs. Las tres últimas son las que
   // suma el PCP; si todavía no existen, el sistema las tolera vacías.
   const CORE_FIELDS = [
     'OT', 'Fecha Ingreso', 'Cliente', 'Tipo', 'Mecanizado', 'Prioridad',
     'Fase de Producción', 'Status Final', 'Cantidad', 'Descripción', 'Material',
-    'Fecha Prometida', 'Cantidad Completada', 'Estado'
-  ];
+    'Fecha Prometida', 'Cantidad Completada', 'Estado',
+    // Columnas del PCP. Alimentan los indicadores; si faltan, el indicador
+    // correspondiente queda "No medible" en vez de mostrar un número falso.
+    'Monto', 'Saldo', 'Peso', 'Fecha Entrega Real'
+  ].concat(FASES_ESTAMPABLES.map(columnaFase));
   const STAGE_FIELDS = ['Diseño', 'Moldeo', 'Fundición', 'Mecanizado', 'Rechazados', 'Listos'];
 
   // Nombres alternativos aceptados para una misma columna.
@@ -47,16 +112,16 @@ window.RVH = (function () {
 
   // Datos de muestra: solo se usan si la planilla no responde, para que el
   // tablero nunca quede en blanco. Cubre los tres estados del semáforo.
-  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material,Fecha Prometida,Cantidad Completada,Estado
-OT-3001,01/06/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial,,0,A realizar
-,,,Según Plano,NO,Urgente,Diseño,,12,Bujes de sujeción,Bronce,,,
-OT-3002,28/07/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,Pendiente,2,Carcasa de bomba,Hierro Gris,06/08/2026,6,En proceso
-,,,Según Modelo,SI incluye mecanizado,Normal,Colada,,2,Tapa lateral,Hierro Gris,,,
-,,,Según Modelo,NO,Normal,Moldeo,,8,Prisioneros,Acero Especial,,,
-OT-3003,15/07/2026,Talleres Ñandutí,Según Muestra,SI incluye mecanizado,Normal,Mecanizado,Pendiente,10,Rueda dentada,Acero Especial,28/07/2026,3,En proceso
-OT-3004,20/07/2026,Fundiciones Guaraní,Según Muestra,NO,Urgente,Diseño,Pendiente,6,Codo de escape,Hierro Gris,11/08/2026,0,A realizar
-OT-3005,25/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Mecanizado,Pendiente,20,Eslabón de arado,Acero Especial,30/09/2026,5,En proceso
-OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Normal,,Terminado,3,Bridas de acople,Bronce,15/07/2026,3,Terminado`;
+  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material,Fecha Prometida,Cantidad Completada,Estado,Monto,Saldo,Peso,Fecha Entrega Real,Fecha Modelería,Fecha Moldeo,Fecha Colada,Fecha Terminación,Fecha Despacho,Fecha Entregado
+OT-3001,01/06/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,,Pendiente,4,Anillo cónico rollado,Hierro Fundido,,0,,18500000,0,,,,,,,,
+,,,Según Plano,NO,Urgente,,,12,Bujes de sujeción,Bronce,,,,,,,,,,,,,
+OT-3002,28/07/2026,Bombas Industriales SA,Según Modelo,NO,Normal,,Pendiente,2,Carcasa de bomba,ASTM A48,06/08/2026,6,,24000000,0,180,,29/07/2026,03/08/2026,,,,
+,,,Según Modelo,SI incluye mecanizado,Normal,,,2,Tapa lateral,ASTM A48,,,,,,,,,,,,,
+,,,Según Modelo,NO,Normal,,,8,Prisioneros,Acero 4140,,,,,,,,,,,,,
+OT-3003,15/07/2026,Talleres Ñandutí,Según Muestra,SI incluye mecanizado,Normal,,Pendiente,10,Rueda dentada,Acero Manganeso,28/07/2026,3,,9800000,0,,,16/07/2026,20/07/2026,27/07/2026,,,
+OT-3004,20/07/2026,Fundiciones Guaraní,Según Muestra,NO,Urgente,,Pendiente,6,Codo de escape,Fundición Gris,11/08/2026,0,,7200000,0,,,22/07/2026,,,,,
+OT-3005,25/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,,Pendiente,20,Eslabón de arado,Acero 1020,30/09/2026,5,,31000000,0,240,,27/07/2026,02/08/2026,,,,
+OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Normal,,Terminado,3,Bridas de acople,Bronce SAE 65,15/07/2026,3,,5400000,0,60,12/07/2026,19/06/2026,24/06/2026,28/06/2026,05/07/2026,10/07/2026,12/07/2026`;
 
   // ---------------------------------------------------------------------
   // Helpers
@@ -284,6 +349,125 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     return { color, motivo, diasDesdeIngreso, diasParaEntrega };
   }
 
+  /**
+   * Colapsa las variantes con que se escribe un material ("ASTM A48",
+   * "Hierro Fundido", "Fundición Gris") en uno solo, conservando siempre
+   * cómo estaba escrito originalmente para no perder el dato de origen.
+   */
+  function normalizarMaterial(crudo) {
+    const raw = (crudo || '').trim();
+    const hit = INDICE_MATERIALES[normalize(raw)];
+    return {
+      raw,
+      normalizado: hit ? hit[0] : (raw || 'Sin especificar'),
+      familia: hit ? hit[1] : (raw ? 'Sin clasificar' : 'Sin especificar'),
+      conocido: !!hit
+    };
+  }
+
+  /**
+   * Semáforo del tablero PCP:
+   *   con fecha comprometida -> vencido / por vencer / en plazo contra ella
+   *   sin fecha comprometida -> se cae a la antigüedad desde el ingreso
+   * Un pedido cerrado no tiene urgencia.
+   */
+  function semaforoPCP(pedido, hoy) {
+    const ref = hoy || new Date();
+    if (pedido.cerrado) return { color: 'n', texto: '—', dias: null };
+
+    if (pedido.fechaPrometidaDate) {
+      const faltan = daysBetween(ref, pedido.fechaPrometidaDate);
+      if (faltan < 0) return { color: 'r', texto: 'Vencido', dias: faltan };
+      if (faltan <= 7) return { color: 'a', texto: 'Por vencer', dias: faltan };
+      return { color: 'v', texto: 'En plazo', dias: faltan };
+    }
+
+    const edad = pedido.fechaIngresoDate ? daysBetween(pedido.fechaIngresoDate, ref) : null;
+    if (edad == null) return { color: 'n', texto: '—', dias: null };
+    if (edad > DIAS_SIN_COMPROMISO.rojo) return { color: 'r', texto: 'Vencido', dias: edad };
+    if (edad > DIAS_SIN_COMPROMISO.ambar) return { color: 'a', texto: 'Por vencer', dias: edad };
+    return { color: 'v', texto: 'En plazo', dias: edad };
+  }
+
+  /** Antigüedad en días desde el ingreso. */
+  function antiguedad(pedido, hoy) {
+    if (!pedido.fechaIngresoDate) return null;
+    return daysBetween(pedido.fechaIngresoDate, hoy || new Date());
+  }
+
+  /**
+   * Los nueve indicadores. Devuelven `null` cuando faltan los datos que los
+   * alimentan: eso se muestra como "No medible" y es deliberado — un
+   * indicador que no se puede calcular informa qué falta cargar, mientras
+   * que un cero inventado miente.
+   */
+  function metricas(pedidos, hoy) {
+    const ref = hoy || new Date();
+    const P = pedidos || [];
+    const pend = P.filter(p => !p.cerrado);
+    const ent = P.filter(p => p.fase === 'Entregado');
+
+    const edades = pend.map(p => antiguedad(p, ref)).filter(d => d != null);
+    const conCompromiso = P.filter(p => p.fechaPrometidaDate);
+    const entMedibles = ent.filter(p => p.fechaEntregaRealDate && p.fechaPrometidaDate);
+    const entConCierre = ent.filter(p => p.fechaEntregaRealDate && p.fechaIngresoDate);
+    const conRech = P.filter(p => p.rechazados != null && p.cantidadTotal > 0);
+    const camposDe = p => ['fechaPrometidaDate', 'fechaEntregaRealDate', 'peso']
+      .filter(k => p[k] != null && p[k] !== '').length;
+
+    const suma = (arr, f) => arr.reduce((s, x) => s + (f(x) || 0), 0);
+
+    return {
+      total: P.length,
+      pend: pend.length,
+      ent: ent.length,
+      piezas: suma(pend, p => p.cantidadTotal),
+      monto: suma(pend, p => p.monto),
+      saldoEnt: suma(ent, p => p.saldo),
+
+      edadProm: edades.length ? Math.round(edades.reduce((a, b) => a + b, 0) / edades.length) : null,
+      edadMax: edades.length ? Math.max.apply(null, edades) : null,
+      vencidos: pend.filter(p => p.semaforoPCP.color === 'r').length,
+      porVencer: pend.filter(p => p.semaforoPCP.color === 'a').length,
+
+      backlogVencido: pend.length
+        ? pend.filter(p => (antiguedad(p, ref) || 0) > DIAS_SIN_COMPROMISO.rojo).length / pend.length
+        : null,
+
+      otd: entMedibles.length
+        ? entMedibles.filter(p => p.fechaEntregaRealDate <= p.fechaPrometidaDate).length / entMedibles.length
+        : null,
+      otdN: entMedibles.length,
+
+      lead: entConCierre.length
+        ? Math.round(suma(entConCierre, p => daysBetween(p.fechaIngresoDate, p.fechaEntregaRealDate)) / entConCierre.length)
+        : null,
+      leadN: entConCierre.length,
+
+      cobertura: P.length ? conCompromiso.length / P.length : null,
+
+      rechazo: conRech.length
+        ? suma(conRech, p => p.rechazados) / suma(conRech, p => p.cantidadTotal)
+        : null,
+      rechazoN: conRech.length,
+
+      completitud: P.length ? suma(P, camposDe) / (P.length * 3) : null
+    };
+  }
+
+  /** Agrupa y ordena por volumen: sirve para concentración por cliente o material. */
+  function concentracion(pedidos, clave, valor) {
+    const mapa = new Map();
+    pedidos.forEach(p => {
+      const k = clave(p) || 'Sin especificar';
+      mapa.set(k, (mapa.get(k) || 0) + (valor(p) || 0));
+    });
+    const total = Array.from(mapa.values()).reduce((a, b) => a + b, 0);
+    return Array.from(mapa.entries())
+      .map(([nombre, v]) => ({ nombre, valor: v, parte: total ? v / total : 0 }))
+      .sort((a, b) => b.valor - a.valor);
+  }
+
   const PESO_SEMAFORO = { rojo: 0, amarillo: 1, verde: 2 };
 
   /** Rojos siempre primero; dentro de cada color, lo más urgente arriba. */
@@ -322,6 +506,15 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
           fechaPrometidaDate: parseFecha(row['Fecha Prometida']),
           estadoCrudo: row['Estado'] || '',
           statusFinal: row['Status Final'] || '',
+          montoCrudo: toNumber(row['Monto']),
+          saldoCrudo: toNumber(row['Saldo']),
+          pesoCrudo: toNumber(row['Peso']),
+          fechaEntregaRealRaw: (row['Fecha Entrega Real'] || '').trim(),
+          fasesCrudas: (() => {
+            const f = {};
+            FASES_ESTAMPABLES.forEach(n => { f[n] = row[columnaFase(n)] || ''; });
+            return f;
+          })(),
           // El avance vive en la fila cabecera de la OT (la que trae el número).
           completadaCruda: toNumber(row['Cantidad Completada']),
           tipoSet: new Set(),
@@ -355,9 +548,26 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       // que el taller ya venía cargando por pieza.
       const listos = order.items.reduce((s, i) => s + (i.stages['Listos'] || 0), 0);
       const cantidadCompletada = order.completadaCruda !== null ? order.completadaCruda : listos;
-      const rechazados = order.items.reduce((s, i) => s + (i.stages['Rechazados'] || 0), 0);
+      // Ojo con la diferencia entre "cero rechazos" y "nadie registró
+      // rechazos": si ningún ítem trae el dato queda null, para que la tasa
+      // de rechazo salga "No medible" en vez de un 0% que aparenta calidad
+      // perfecta.
+      const itemsConRechazo = order.items.filter(i => i.stages['Rechazados'] != null);
+      const rechazados = itemsConRechazo.length
+        ? itemsConRechazo.reduce((s, i) => s + i.stages['Rechazados'], 0)
+        : null;
 
       const estado = resolverEstado(order.estadoCrudo, order.statusFinal, cantidadCompletada, cantidadTotal);
+
+      // Fases estampadas: {fase: 'DD/MM/AAAA'}. La fase actual es la última
+      // con fecha; sin ninguna, el pedido está "Por cargar".
+      const fechasFase = {};
+      FASES_ESTAMPABLES.forEach(f => {
+        const v = (order.fasesCrudas[f] || '').trim();
+        if (v) fechasFase[f] = v;
+      });
+      const marcadas = FASES_ESTAMPABLES.filter(f => fechasFase[f]);
+      const fase = marcadas.length ? marcadas[marcadas.length - 1] : 'Por cargar';
 
       const modelo = {
         otNumber: order.otNumber,
@@ -380,14 +590,31 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
         faltantes: Math.max(0, cantidadTotal - cantidadCompletada),
         avance: cantidadTotal > 0
           ? Math.min(100, Math.round((cantidadCompletada / cantidadTotal) * 100))
-          : 0
+          : 0,
+
+        // --- Modelo PCP -------------------------------------------------
+        fase,
+        fechasFase,
+        cerrado: FASES_CERRADAS.indexOf(fase) !== -1,
+        material: normalizarMaterial(order.items.length ? order.items[0].material : ''),
+        monto: order.montoCrudo,
+        saldo: order.saldoCrudo,
+        peso: order.pesoCrudo,
+        fechaEntregaReal: order.fechaEntregaRealRaw,
+        fechaEntregaRealDate: parseFecha(order.fechaEntregaRealRaw)
       };
 
       modelo.semaforo = calcularSemaforo(modelo, hoy);
+      // Semáforo del PCP: prioriza la fecha comprometida y, sin ella, cae a
+      // la antigüedad. Va aparte de `semaforo` para no alterar lo que ya
+      // consume carga.html.
+      modelo.semaforoPCP = semaforoPCP(modelo, hoy);
       return modelo;
     });
 
-    return aplicarAvancePendiente(ordenes);
+    const conFases = aplicarFasesPendientes(ordenes);
+    conFases.forEach(p => { p.semaforoPCP = semaforoPCP(p, hoy); });
+    return aplicarAvancePendiente(conFases);
   }
 
   // ---------------------------------------------------------------------
@@ -398,6 +625,64 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   // se guarda el valor devuelto por la API y se usa hasta que el CSV lo
   // alcanza (ahí se descarta solo).
   const PENDING_KEY = 'rvh_avance_pendiente';
+  const PENDING_FASES_KEY = 'rvh_fases_pendientes';
+
+  function leerFasesPendientes() {
+    try {
+      return JSON.parse(localStorage.getItem(PENDING_FASES_KEY) || '{}');
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function guardarFasePendiente(otNumber, fase, fecha) {
+    try {
+      const pend = leerFasesPendientes();
+      if (!pend[otNumber]) pend[otNumber] = {};
+      pend[otNumber][fase] = { fecha, ts: Date.now() };
+      localStorage.setItem(PENDING_FASES_KEY, JSON.stringify(pend));
+    } catch (err) { /* no crítico */ }
+  }
+
+  /**
+   * Igual que el avance: la fase recién marcada se muestra al instante y se
+   * descarta sola cuando el CSV publicado la trae (o a las 24 h).
+   */
+  function aplicarFasesPendientes(pedidos) {
+    const pend = leerFasesPendientes();
+    if (!Object.keys(pend).length) return pedidos;
+
+    const LIMITE_MS = 24 * 60 * 60 * 1000;
+    let cambio = false;
+
+    pedidos.forEach(p => {
+      const marcas = pend[p.otNumber];
+      if (!marcas) return;
+
+      Object.keys(marcas).forEach(fase => {
+        const m = marcas[fase];
+        if (p.fechasFase[fase] || (Date.now() - m.ts) > LIMITE_MS) {
+          delete marcas[fase];
+          cambio = true;
+          return;
+        }
+        p.fechasFase[fase] = m.fecha;
+        p.fasePendiente = true;
+      });
+
+      if (!Object.keys(marcas).length) { delete pend[p.otNumber]; cambio = true; }
+
+      // La fase actual se recalcula: es la última marcada del recorrido.
+      const marcadas = FASES_ESTAMPABLES.filter(f => p.fechasFase[f]);
+      p.fase = marcadas.length ? marcadas[marcadas.length - 1] : 'Por cargar';
+      p.cerrado = FASES_CERRADAS.indexOf(p.fase) !== -1;
+    });
+
+    if (cambio) {
+      try { localStorage.setItem(PENDING_FASES_KEY, JSON.stringify(pend)); } catch (err) { /* noop */ }
+    }
+    return pedidos;
+  }
 
   function leerPendientes() {
     try {
@@ -477,7 +762,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
    * dispara un preflight OPTIONS que Apps Script no responde, y la petición
    * falla por CORS.
    */
-  async function registrarCargaDiaria(datos) {
+  async function enviar(cuerpo) {
     if (!CONFIG.API_URL) {
       throw new Error('Falta configurar CONFIG.API_URL en shared.js (ver README.md).');
     }
@@ -485,15 +770,32 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     const res = await fetch(CONFIG.API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ token: CONFIG.API_TOKEN }, datos))
+      body: JSON.stringify(Object.assign({ token: CONFIG.API_TOKEN }, cuerpo))
     });
 
     if (!res.ok) throw new Error(`El servidor respondió ${res.status}.`);
 
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'No se pudo guardar el registro.');
+    if (!json.ok) throw new Error(json.error || 'No se pudo guardar.');
+    return json;
+  }
 
+  async function registrarCargaDiaria(datos) {
+    // Sin `accion` el backend asume carga diaria: así carga.html sigue
+    // funcionando exactamente igual que antes de existir el PCP.
+    const json = await enviar(Object.assign({ accion: 'carga_diaria' }, datos));
     guardarAvancePendiente(json.id_ot, json.cantidad_completada);
+    return json;
+  }
+
+  /** Estampa la fecha de una fase en la OT. Sin fecha, usa hoy. */
+  async function marcarFase(otNumber, fase, fecha) {
+    if (FASES_ESTAMPABLES.indexOf(fase) === -1) {
+      throw new Error('Fase desconocida: ' + fase);
+    }
+    const usada = fecha || hoyISO();
+    const json = await enviar({ accion: 'marcar_fase', id_ot: otNumber, fase, fecha: usada });
+    guardarFasePendiente(otNumber, fase, json.fecha || usada);
     return json;
   }
 
@@ -532,6 +834,17 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     CONFIG,
     PROCESOS,
     ESTADOS,
+    FASES,
+    FASES_ESTAMPABLES,
+    FASES_CERRADAS,
+    columnaFase,
+    MAESTRO_MATERIALES,
+    normalizarMaterial,
+    semaforoPCP,
+    antiguedad,
+    metricas,
+    concentracion,
+    marcarFase,
     DEMO_CSV,
     SEMAFORO_UI,
     normalize,

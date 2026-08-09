@@ -36,6 +36,11 @@ const COLUMNAS_REGISTRO = [
 
 const PROCESOS_VALIDOS = ['Carpintería', 'Moldeo', 'Fundición', 'Terminación'];
 
+// Fases que se estampan con fecha. La columna va prefijada con "Fecha "
+// porque "Moldeo" y "Terminación" ya se usan como columnas de cantidad.
+const FASES_ESTAMPABLES = ['Modelería', 'Moldeo', 'Colada', 'Terminación', 'Despacho', 'Entregado'];
+function columnaFase(fase) { return 'Fecha ' + fase; }
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -104,6 +109,59 @@ function asegurarColumnaCompletada(hoja, encabezados) {
 // Endpoints
 // ---------------------------------------------------------------------------
 
+/**
+ * Estampa la fecha de una fase en la fila cabecera de la OT.
+ * Idempotente por diseño: si la fase ya tenía fecha, se conserva la
+ * original — el dato que interesa es cuándo pasó de verdad, no cuántas
+ * veces alguien tocó el botón.
+ */
+function marcarFase(datos, idOt) {
+  const fase = String(datos.fase || '').trim();
+  if (FASES_ESTAMPABLES.indexOf(fase) === -1) {
+    return jsonResponse({ ok: false, error: 'Fase inválida: ' + fase });
+  }
+
+  const fecha = String(datos.fecha || '').trim() ||
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  const hoja = getHojaOrdenes();
+  const valores = hoja.getDataRange().getValues();
+  if (valores.length < 2) {
+    return jsonResponse({ ok: false, error: 'La planilla de órdenes está vacía.' });
+  }
+
+  const encabezados = valores[0];
+  const colOt = indiceColumna(encabezados, CONFIG.COL_OT);
+  if (colOt === -1) {
+    return jsonResponse({ ok: false, error: 'No se encontró la columna "OT".' });
+  }
+
+  var fila = -1;
+  for (var i = 1; i < valores.length; i++) {
+    if (String(valores[i][colOt]).trim() === idOt) { fila = i; break; }
+  }
+  if (fila === -1) {
+    return jsonResponse({ ok: false, error: 'No existe la OT ' + idOt + ' en la planilla.' });
+  }
+
+  const nombreCol = columnaFase(fase);
+  var col = indiceColumna(encabezados, nombreCol);
+  if (col === -1) {
+    // Se crea sola: así no hace falta preparar la planilla a mano.
+    col = encabezados.length;
+    hoja.getRange(1, col + 1).setValue(nombreCol).setFontWeight('bold');
+  }
+
+  const previo = String(valores[fila][col] || '').trim();
+  if (previo) {
+    return jsonResponse({ ok: true, id_ot: idOt, fase: fase, fecha: previo, yaEstaba: true });
+  }
+
+  hoja.getRange(fila + 1, col + 1).setValue(fecha);
+  SpreadsheetApp.flush();
+  return jsonResponse({ ok: true, id_ot: idOt, fase: fase, fecha: fecha, yaEstaba: false });
+}
+
 /** Chequeo de salud: abrir la URL del Web App en el navegador debe responder ok. */
 function doGet() {
   return jsonResponse({
@@ -149,9 +207,18 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: 'Token inválido.' });
     }
 
+    // Sin `accion` se asume carga diaria: así las versiones previas de
+    // carga.html siguen funcionando sin cambiarles una línea.
+    const accion = String(datos.accion || 'carga_diaria').trim();
+
     // --- Validación -------------------------------------------------------
     const idOt = String(datos.id_ot || '').trim();
     if (!idOt) return jsonResponse({ ok: false, error: 'Falta la OT.' });
+
+    if (accion === 'marcar_fase') return marcarFase(datos, idOt);
+    if (accion !== 'carga_diaria') {
+      return jsonResponse({ ok: false, error: 'Acción desconocida: ' + accion });
+    }
 
     const cantidad = Number(datos.cantidad_procesada);
     if (!isFinite(cantidad) || cantidad <= 0) {
