@@ -112,16 +112,16 @@ window.RVH = (function () {
 
   // Datos de muestra: solo se usan si la planilla no responde, para que el
   // tablero nunca quede en blanco. Cubre los tres estados del semáforo.
-  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material,Fecha Prometida,Cantidad Completada,Estado
-OT-3001,01/06/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,Diseño,Pendiente,4,Anillo cónico rollado,Acero Especial,,0,A realizar
-,,,Según Plano,NO,Urgente,Diseño,,12,Bujes de sujeción,Bronce,,,
-OT-3002,28/07/2026,Bombas Industriales SA,Según Modelo,NO,Normal,Moldeo,Pendiente,2,Carcasa de bomba,Hierro Gris,06/08/2026,6,En proceso
-,,,Según Modelo,SI incluye mecanizado,Normal,Colada,,2,Tapa lateral,Hierro Gris,,,
-,,,Según Modelo,NO,Normal,Moldeo,,8,Prisioneros,Acero Especial,,,
-OT-3003,15/07/2026,Talleres Ñandutí,Según Muestra,SI incluye mecanizado,Normal,Mecanizado,Pendiente,10,Rueda dentada,Acero Especial,28/07/2026,3,En proceso
-OT-3004,20/07/2026,Fundiciones Guaraní,Según Muestra,NO,Urgente,Diseño,Pendiente,6,Codo de escape,Hierro Gris,11/08/2026,0,A realizar
-OT-3005,25/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,Mecanizado,Pendiente,20,Eslabón de arado,Acero Especial,30/09/2026,5,En proceso
-OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Normal,,Terminado,3,Bridas de acople,Bronce,15/07/2026,3,Terminado`;
+  const DEMO_CSV = `OT,Fecha Ingreso,Cliente,Tipo,Mecanizado,Prioridad,Fase de Producción,Status Final,Cantidad,Descripción,Material,Fecha Prometida,Cantidad Completada,Estado,Monto,Saldo,Peso,Fecha Entrega Real,Fecha Modelería,Fecha Moldeo,Fecha Colada,Fecha Terminación,Fecha Despacho,Fecha Entregado
+OT-3001,01/06/2026,Metalúrgica del Sur,Según Plano,SI incluye mecanizado,Urgente,,Pendiente,4,Anillo cónico rollado,Hierro Fundido,,0,,18500000,0,,,,,,,,
+,,,Según Plano,NO,Urgente,,,12,Bujes de sujeción,Bronce,,,,,,,,,,,,,
+OT-3002,28/07/2026,Bombas Industriales SA,Según Modelo,NO,Normal,,Pendiente,2,Carcasa de bomba,ASTM A48,06/08/2026,6,,24000000,0,180,,29/07/2026,03/08/2026,,,,
+,,,Según Modelo,SI incluye mecanizado,Normal,,,2,Tapa lateral,ASTM A48,,,,,,,,,,,,,
+,,,Según Modelo,NO,Normal,,,8,Prisioneros,Acero 4140,,,,,,,,,,,,,
+OT-3003,15/07/2026,Talleres Ñandutí,Según Muestra,SI incluye mecanizado,Normal,,Pendiente,10,Rueda dentada,Acero Manganeso,28/07/2026,3,,9800000,0,,,16/07/2026,20/07/2026,27/07/2026,,,
+OT-3004,20/07/2026,Fundiciones Guaraní,Según Muestra,NO,Urgente,,Pendiente,6,Codo de escape,Fundición Gris,11/08/2026,0,,7200000,0,,,22/07/2026,,,,,
+OT-3005,25/07/2026,Agro Repuestos Paraguay,Según Plano,NO,Normal,,Pendiente,20,Eslabón de arado,Acero 1020,30/09/2026,5,,31000000,0,240,,27/07/2026,02/08/2026,,,,
+OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Normal,,Terminado,3,Bridas de acople,Bronce SAE 65,15/07/2026,3,,5400000,0,60,12/07/2026,19/06/2026,24/06/2026,28/06/2026,05/07/2026,10/07/2026,12/07/2026`;
 
   // ---------------------------------------------------------------------
   // Helpers
@@ -612,7 +612,9 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       return modelo;
     });
 
-    return aplicarAvancePendiente(ordenes);
+    const conFases = aplicarFasesPendientes(ordenes);
+    conFases.forEach(p => { p.semaforoPCP = semaforoPCP(p, hoy); });
+    return aplicarAvancePendiente(conFases);
   }
 
   // ---------------------------------------------------------------------
@@ -623,6 +625,64 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   // se guarda el valor devuelto por la API y se usa hasta que el CSV lo
   // alcanza (ahí se descarta solo).
   const PENDING_KEY = 'rvh_avance_pendiente';
+  const PENDING_FASES_KEY = 'rvh_fases_pendientes';
+
+  function leerFasesPendientes() {
+    try {
+      return JSON.parse(localStorage.getItem(PENDING_FASES_KEY) || '{}');
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function guardarFasePendiente(otNumber, fase, fecha) {
+    try {
+      const pend = leerFasesPendientes();
+      if (!pend[otNumber]) pend[otNumber] = {};
+      pend[otNumber][fase] = { fecha, ts: Date.now() };
+      localStorage.setItem(PENDING_FASES_KEY, JSON.stringify(pend));
+    } catch (err) { /* no crítico */ }
+  }
+
+  /**
+   * Igual que el avance: la fase recién marcada se muestra al instante y se
+   * descarta sola cuando el CSV publicado la trae (o a las 24 h).
+   */
+  function aplicarFasesPendientes(pedidos) {
+    const pend = leerFasesPendientes();
+    if (!Object.keys(pend).length) return pedidos;
+
+    const LIMITE_MS = 24 * 60 * 60 * 1000;
+    let cambio = false;
+
+    pedidos.forEach(p => {
+      const marcas = pend[p.otNumber];
+      if (!marcas) return;
+
+      Object.keys(marcas).forEach(fase => {
+        const m = marcas[fase];
+        if (p.fechasFase[fase] || (Date.now() - m.ts) > LIMITE_MS) {
+          delete marcas[fase];
+          cambio = true;
+          return;
+        }
+        p.fechasFase[fase] = m.fecha;
+        p.fasePendiente = true;
+      });
+
+      if (!Object.keys(marcas).length) { delete pend[p.otNumber]; cambio = true; }
+
+      // La fase actual se recalcula: es la última marcada del recorrido.
+      const marcadas = FASES_ESTAMPABLES.filter(f => p.fechasFase[f]);
+      p.fase = marcadas.length ? marcadas[marcadas.length - 1] : 'Por cargar';
+      p.cerrado = FASES_CERRADAS.indexOf(p.fase) !== -1;
+    });
+
+    if (cambio) {
+      try { localStorage.setItem(PENDING_FASES_KEY, JSON.stringify(pend)); } catch (err) { /* noop */ }
+    }
+    return pedidos;
+  }
 
   function leerPendientes() {
     try {
@@ -733,12 +793,10 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     if (FASES_ESTAMPABLES.indexOf(fase) === -1) {
       throw new Error('Fase desconocida: ' + fase);
     }
-    return enviar({
-      accion: 'marcar_fase',
-      id_ot: otNumber,
-      fase,
-      fecha: fecha || hoyISO()
-    });
+    const usada = fecha || hoyISO();
+    const json = await enviar({ accion: 'marcar_fase', id_ot: otNumber, fase, fecha: usada });
+    guardarFasePendiente(otNumber, fase, json.fecha || usada);
+    return json;
   }
 
   // ---------------------------------------------------------------------

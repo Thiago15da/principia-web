@@ -3,344 +3,468 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RVH Fundición | Dashboard PCP</title>
+<title>PCP · RVH Fundición</title>
 
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f2942">
+<meta name="theme-color" content="#1E353B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="RVH PCP">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          rvh: {
-            bg: '#f1f5f9', navy: '#0f2942', navyLight: '#1e3a8a',
-            steel: '#475569', amber: '#d97706', border: '#e2e8f0'
-          }
-        }
-      }
-    }
-  }
-</script>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
-  .row-enter { animation: row-in .2s ease-out; }
-  @keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-  .spinner { border: 3px solid #e2e8f0; border-top-color: #d97706; border-radius: 50%; width: 28px; height: 28px; animation: spin .8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .pulse-critico { animation: pulso 2s ease-in-out infinite; }
-  @keyframes pulso { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
 </head>
-<body class="bg-rvh-bg text-slate-800 min-h-screen">
+<body>
+<div class="app">
 
-  <header class="sticky top-0 z-20 bg-rvh-navy text-white shadow-md">
-    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-3 flex flex-wrap gap-4 items-center justify-between">
-      <div class="flex items-center gap-3">
-        <img src="IMG_8258.png" alt="RVH Logo"
-          style="max-height: 46px; height: 46px; width: auto; object-fit: contain;"
-          class="rounded-lg bg-white/10 border border-white/20 p-1"
-          onerror="this.style.display='none';">
-        <div>
-          <h1 class="text-base md:text-lg font-bold leading-tight">Planeamiento y Control de Producción</h1>
-          <p class="text-[11px] text-slate-300 font-semibold uppercase tracking-wide">RVH Fundición &middot; Prioridad del día</p>
+  <nav class="rail">
+    <div class="brand">
+      <b>PCP</b><span>RVH Fundición</span>
+    </div>
+    <button class="navbtn" data-vista="tablero" aria-current="true">Tablero</button>
+    <button class="navbtn" data-vista="pedidos">Pedidos</button>
+    <button class="navbtn" data-vista="carga">Carga por sector</button>
+    <button class="navbtn" data-vista="indicadores">Indicadores</button>
+    <button class="navbtn" data-vista="parte">Parte diario</button>
+    <div class="spacer"></div>
+    <div class="foot" id="foot"></div>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="search">
+        <input id="q" type="search" placeholder="Buscar por OT, cliente, pieza o material..." autocomplete="off">
+      </div>
+      <button class="btn ghost" id="btnRefrescar">Actualizar</button>
+    </div>
+
+    <div id="aviso"></div>
+    <div class="spin" id="cargando"></div>
+
+    <!-- ================= TABLERO ================= -->
+    <section class="wrap hide" id="v-tablero">
+      <h1 class="page">Tablero</h1>
+      <p class="sub" id="tabSub"></p>
+
+      <div class="kpis" id="kpiStrip"></div>
+
+      <div class="field">
+        <div class="fieldhead">
+          <h2 class="sec" style="margin:0;border:0">Antigüedad del backlog</h2>
+          <div class="legend">
+            <span><i class="r"></i>Vencido</span>
+            <span><i class="a"></i>Por vencer</span>
+            <span><i class="v"></i>En plazo</span>
+          </div>
         </div>
+        <div class="strip" id="strip"></div>
+        <div class="axis" id="axis"></div>
       </div>
 
-      <nav class="flex items-center gap-2">
-        <span class="px-3 py-2 rounded-lg text-sm font-bold bg-white text-rvh-navy shadow-sm">Dashboard PCP</span>
-        <a href="carga.html" class="px-3 py-2 rounded-lg text-sm font-bold bg-white/10 border border-white/20 hover:bg-white/20 transition">+ Carga Diaria</a>
-        <button id="refresh-btn" title="Actualizar"
-          class="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition">
-          <svg id="refresh-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114.9-3.4M20 15a8 8 0 01-14.9 3.4" />
-          </svg>
-        </button>
-      </nav>
-    </div>
-    <div id="status-bar" class="max-w-[1600px] mx-auto px-4 md:px-6 pb-2.5 text-xs text-slate-300 flex items-center gap-2"></div>
-  </header>
-
-  <main class="max-w-[1600px] mx-auto px-4 md:px-6 py-6 space-y-5">
-
-    <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4">
-      <span id="error-text"></span>
-      <button id="error-retry" class="shrink-0 font-bold underline underline-offset-2 hover:text-red-900">Reintentar</button>
-    </div>
-
-    <section id="kpis" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></section>
-
-    <div class="flex flex-wrap gap-3 items-center justify-between">
-      <div class="relative flex-1 min-w-[240px] max-w-md">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
-        </svg>
-        <input id="search-input" type="text" placeholder="Buscar por OT, cliente, pieza o material..."
-          class="w-full bg-white border border-rvh-border rounded-lg py-2.5 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-rvh-navyLight/40 placeholder:text-slate-400">
-      </div>
-      <label class="flex items-center gap-2 text-sm font-semibold text-slate-600 cursor-pointer select-none">
-        <input id="toggle-terminadas" type="checkbox" class="w-4 h-4 accent-rvh-navy">
-        Mostrar terminadas
-      </label>
-    </div>
-
-    <div id="loading-state" class="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
-      <div class="spinner"></div>
-      <p class="text-sm">Cargando órdenes de trabajo...</p>
-    </div>
-
-    <section id="tabla" class="hidden bg-white border border-rvh-border rounded-xl shadow-sm overflow-hidden">
-      <div class="hidden lg:grid grid-cols-[9rem_1fr_7rem_7rem_10rem_8rem] gap-3 px-4 py-2.5 bg-slate-50 border-b border-rvh-border text-[10px] font-bold uppercase tracking-wide text-slate-400">
-        <span>Prioridad</span><span>OT / Cliente / Piezas</span><span>Ingreso</span><span>Prometida</span><span>Avance</span><span>Estado</span>
-      </div>
-      <div id="filas" class="divide-y divide-rvh-border"></div>
+      <h2 class="sec">Lo más urgente</h2>
+      <div id="urgentes"></div>
     </section>
 
-    <div id="empty-state" class="hidden text-center py-24 text-slate-400">
-      <p class="text-lg font-bold text-slate-500">Sin órdenes para mostrar</p>
-      <p class="text-sm mt-1">Ajustá la búsqueda o revisá la planilla de producción.</p>
-    </div>
+    <!-- ================= PEDIDOS ================= -->
+    <section class="wrap hide" id="v-pedidos">
+      <h1 class="page">Pedidos</h1>
+      <p class="sub">Tocá un pedido para ver su ficha y marcar avance.</p>
+      <div class="filters" id="filtros"></div>
+      <div id="tabla"></div>
+    </section>
+
+    <!-- ================= CARGA POR SECTOR ================= -->
+    <section class="wrap hide" id="v-carga">
+      <h1 class="page">Carga por sector</h1>
+      <p class="sub">Dónde está parada la planta hoy.</p>
+      <div class="sectors" id="sectores"></div>
+
+      <h2 class="sec">Concentración por cliente</h2>
+      <div id="porCliente"></div>
+
+      <h2 class="sec">Concentración por material</h2>
+      <div id="porMaterial"></div>
+    </section>
+
+    <!-- ================= INDICADORES ================= -->
+    <section class="wrap hide" id="v-indicadores">
+      <h1 class="page">Indicadores</h1>
+      <p class="sub">Nueve indicadores de control, calculados sobre los pedidos activos.</p>
+      <div id="kpiTable"></div>
+      <div class="callout" id="kpiNota"></div>
+    </section>
+
+    <!-- ================= PARTE DIARIO ================= -->
+    <section class="wrap hide" id="v-parte">
+      <h1 class="page">Parte diario</h1>
+      <p class="sub">La carga del turno se hace en su propia pantalla, pensada para el celular.</p>
+      <div class="btnrow">
+        <a class="btn" href="carga.html">Abrir Carga Diaria</a>
+      </div>
+    </section>
   </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="ficha" id="ficha" aria-hidden="true"></aside>
 
 <script src="shared.js"></script>
 <script>
 (function () {
   'use strict';
 
-  const { CONFIG, SEMAFORO_UI, normalize, debounce, cargarOrdenes } = window.RVH;
+  const R = window.RVH;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const gs = n => (n == null ? '' : Math.round(n).toLocaleString('es-PY'));
 
-  const el = {
-    kpis: document.getElementById('kpis'),
-    tabla: document.getElementById('tabla'),
-    filas: document.getElementById('filas'),
-    loading: document.getElementById('loading-state'),
-    empty: document.getElementById('empty-state'),
-    errorBanner: document.getElementById('error-banner'),
-    errorText: document.getElementById('error-text'),
-    errorRetry: document.getElementById('error-retry'),
-    search: document.getElementById('search-input'),
-    toggleTerminadas: document.getElementById('toggle-terminadas'),
-    refreshBtn: document.getElementById('refresh-btn'),
-    refreshIcon: document.getElementById('refresh-icon'),
-    statusBar: document.getElementById('status-bar')
-  };
-
-  let ordenes = [];
+  let pedidos = [];
+  let vista = 'tablero';
+  let filtro = 'todos';
+  let abierto = null;   // OT con la ficha abierta
 
   // -------------------------------------------------------------------
-  // KPIs
+  // Navegación
   // -------------------------------------------------------------------
-  function renderKpis() {
-    const activas = ordenes.filter(o => o.activa);
-    const criticas = activas.filter(o => o.semaforo.color === 'rojo').length;
-    const alertas = activas.filter(o => o.semaforo.color === 'amarillo').length;
-    const piezasPendientes = activas.reduce((s, o) => s + o.faltantes, 0);
-
-    const tiles = [
-      { label: 'OT Activas', valor: activas.length, clase: 'text-rvh-navy' },
-      { label: '🔴 Críticas', valor: criticas, clase: criticas > 0 ? 'text-red-600' : 'text-slate-400' },
-      { label: '🟡 En alerta', valor: alertas, clase: alertas > 0 ? 'text-amber-600' : 'text-slate-400' },
-      { label: 'Piezas pendientes', valor: piezasPendientes, clase: 'text-rvh-navyLight' }
-    ];
-
-    el.kpis.innerHTML = '';
-    tiles.forEach(t => {
-      const box = document.createElement('div');
-      box.className = 'bg-white border border-rvh-border rounded-xl shadow-sm px-4 py-3.5';
-      const lab = document.createElement('p');
-      lab.className = 'text-[11px] font-bold uppercase tracking-wide text-slate-400';
-      lab.textContent = t.label;
-      const val = document.createElement('p');
-      val.className = `text-2xl font-black mt-1 ${t.clase}`;
-      val.textContent = t.valor;
-      box.append(lab, val);
-      el.kpis.appendChild(box);
-    });
-  }
-
-  // -------------------------------------------------------------------
-  // Filas
-  // -------------------------------------------------------------------
-  function celda(texto, clases) {
-    const s = document.createElement('span');
-    s.className = clases;
-    s.textContent = texto;
-    return s;
-  }
-
-  function barraAvance(orden) {
-    const wrap = document.createElement('div');
-    wrap.className = 'w-full';
-
-    const barra = document.createElement('div');
-    barra.className = 'h-2 w-full bg-slate-200 rounded-full overflow-hidden';
-    const relleno = document.createElement('div');
-    relleno.className = `h-full rounded-full ${orden.avance >= 100 ? 'bg-emerald-500' : 'bg-rvh-navyLight'}`;
-    relleno.style.width = orden.avance + '%';
-    barra.appendChild(relleno);
-
-    const txt = document.createElement('p');
-    txt.className = 'text-[11px] font-bold text-slate-500 mt-1';
-    txt.textContent = `${orden.cantidadCompletada} / ${orden.cantidadTotal} pzs · ${orden.avance}%`;
-
-    wrap.append(barra, txt);
-
-    if (orden.avancePendiente) {
-      const aviso = document.createElement('p');
-      aviso.className = 'text-[10px] text-amber-600 font-bold';
-      aviso.textContent = 'Sincronizando…';
-      wrap.appendChild(aviso);
-    }
-    return wrap;
-  }
-
-  function buildFila(orden) {
-    const ui = SEMAFORO_UI[orden.semaforo.color];
-
-    const fila = document.createElement('div');
-    fila.className = `row-enter grid grid-cols-1 lg:grid-cols-[9rem_1fr_7rem_7rem_10rem_8rem] gap-3 px-4 py-3 items-center hover:bg-slate-50 transition ${ui.borde}`;
-
-    // Prioridad
-    const prio = document.createElement('div');
-    prio.className = 'flex items-center gap-2';
-    const punto = document.createElement('span');
-    punto.className = `w-2.5 h-2.5 rounded-full shrink-0 ${ui.punto} ${orden.semaforo.color === 'rojo' ? 'pulse-critico' : ''}`;
-    const prioTxt = document.createElement('div');
-    const etiqueta = document.createElement('p');
-    etiqueta.className = 'text-[11px] font-black tracking-wide text-slate-700';
-    etiqueta.textContent = ui.etiqueta;
-    const motivo = document.createElement('p');
-    motivo.className = 'text-[10px] text-slate-500 font-medium';
-    motivo.textContent = orden.semaforo.motivo;
-    prioTxt.append(etiqueta, motivo);
-    prio.append(punto, prioTxt);
-    fila.appendChild(prio);
-
-    // OT / Cliente / Piezas
-    const info = document.createElement('div');
-    const linea1 = document.createElement('p');
-    linea1.className = 'font-black text-slate-800 text-sm';
-    linea1.textContent = orden.otNumber;
-    if (orden.urgent) {
-      const urg = document.createElement('span');
-      urg.className = 'ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rvh-amber text-white align-middle';
-      urg.textContent = 'URGENTE';
-      linea1.appendChild(urg);
-    }
-    const linea2 = document.createElement('p');
-    linea2.className = 'text-xs text-slate-600 font-semibold';
-    linea2.textContent = orden.cliente;
-    const linea3 = document.createElement('p');
-    linea3.className = 'text-[11px] text-slate-400 truncate';
-    linea3.title = `${orden.piezasDescripcion} — ${orden.materiales}`;
-    linea3.textContent = [orden.piezasDescripcion, orden.materiales].filter(Boolean).join(' · ');
-    info.append(linea1, linea2, linea3);
-    fila.appendChild(info);
-
-    // Fechas
-    fila.appendChild(celda(orden.fechaIngreso || '—', 'text-xs text-slate-500 font-medium'));
-    fila.appendChild(celda(
-      orden.fechaPrometida || 'sin fecha',
-      `text-xs font-bold ${orden.fechaPrometida ? 'text-slate-700' : 'text-slate-300 italic'}`
-    ));
-
-    // Avance
-    fila.appendChild(barraAvance(orden));
-
-    // Estado
-    const estado = document.createElement('span');
-    estado.className = `inline-flex items-center justify-center px-2 py-1 rounded-md text-[11px] font-bold border w-fit ${ui.chip}`;
-    estado.textContent = orden.estado;
-    fila.appendChild(estado);
-
-    return fila;
-  }
-
-  // -------------------------------------------------------------------
-  // Filtro y render
-  // -------------------------------------------------------------------
-  function visibles() {
-    const incluirTerminadas = el.toggleTerminadas.checked;
-    let lista = incluirTerminadas ? ordenes : ordenes.filter(o => o.activa);
-
-    const q = normalize(el.search.value);
-    if (!q) return lista;
-
-    return lista.filter(o => normalize([
-      o.otNumber, o.cliente, o.piezasDescripcion, o.materiales
-    ].join(' ')).includes(q));
-  }
-
-  function render() {
-    const lista = visibles();
-    el.filas.innerHTML = '';
-    lista.forEach(o => el.filas.appendChild(buildFila(o)));
-
-    el.tabla.classList.toggle('hidden', lista.length === 0);
-    el.empty.classList.toggle('hidden', lista.length !== 0);
-    renderKpis();
-  }
-
-  // -------------------------------------------------------------------
-  // Carga
-  // -------------------------------------------------------------------
-  function setStatusBar(demo) {
-    const hora = new Date().toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' });
-    el.statusBar.innerHTML = '';
-    const dot = document.createElement('span');
-    dot.className = `w-1.5 h-1.5 rounded-full inline-block ${demo ? 'bg-amber-400' : 'bg-emerald-400'}`;
-    const txt = document.createElement('span');
-    txt.textContent = demo
-      ? `Modo demostración (sin conexión a la planilla) · ${hora}`
-      : `Datos en vivo · Actualizado ${hora}`;
-    el.statusBar.append(dot, txt);
-  }
-
-  async function cargar({ silent } = {}) {
-    if (!silent) {
-      el.loading.classList.remove('hidden');
-      el.tabla.classList.add('hidden');
-      el.empty.classList.add('hidden');
-    }
-    el.refreshIcon.classList.add('animate-spin');
-
-    const resultado = await cargarOrdenes();
-    ordenes = resultado.ordenes;
-
-    if (resultado.demo) {
-      el.errorText.textContent = resultado.error || 'No se pudo conectar con la planilla.';
-      el.errorBanner.classList.remove('hidden');
-    } else {
-      el.errorBanner.classList.add('hidden');
-    }
-
-    el.loading.classList.add('hidden');
-    el.refreshIcon.classList.remove('animate-spin');
-    setStatusBar(resultado.demo);
+  function mostrar(v) {
+    vista = v;
+    document.querySelectorAll('.navbtn').forEach(b =>
+      b.setAttribute('aria-current', String(b.dataset.vista === v)));
+    ['tablero', 'pedidos', 'carga', 'indicadores', 'parte'].forEach(k =>
+      $('#v-' + k).classList.toggle('hide', k !== v));
     render();
   }
+  document.querySelectorAll('.navbtn').forEach(b =>
+    b.addEventListener('click', () => mostrar(b.dataset.vista)));
 
-  el.search.addEventListener('input', debounce(render, 150));
-  el.toggleTerminadas.addEventListener('change', render);
-  el.refreshBtn.addEventListener('click', () => cargar());
-  el.errorRetry.addEventListener('click', () => cargar());
+  // -------------------------------------------------------------------
+  // Tablero
+  // -------------------------------------------------------------------
+  function kpiBox(rot, val, pie, alerta, mono) {
+    const naV = val == null;
+    return `<div class="kpi${alerta && !naV ? ' alert' : ''}">
+      <div class="rot">${esc(rot)}</div>
+      <div class="val ${mono ? 'sm' : ''}${naV ? ' na' : ''}">${naV ? 'No medible' : esc(val)}</div>
+      <div class="pie">${esc(pie || '')}</div>
+    </div>`;
+  }
+
+  function renderTablero() {
+    const m = R.metricas(pedidos);
+    const activos = pedidos.filter(p => !p.cerrado);
+
+    $('#tabSub').textContent = pedidos.length
+      ? `${pedidos.length} pedidos · ${m.pend} activos · actualizado ${new Date().toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' })}`
+      : 'Sin pedidos cargados todavía.';
+
+    $('#kpiStrip').innerHTML = [
+      kpiBox('Activos', m.pend, `${m.piezas} piezas en planta`, m.pend > 0),
+      kpiBox('Vencidos', m.vencidos, `${m.porVencer} por vencer`, m.vencidos > 0),
+      kpiBox('Antigüedad promedio', m.edadProm == null ? null : m.edadProm + ' d',
+        m.edadMax != null ? `máximo ${m.edadMax} d` : '', m.edadProm > 60),
+      kpiBox('Facturación estancada', m.monto ? ('Gs. ' + gs(m.monto)) : null, 'en pedidos sin entregar', true, true),
+      kpiBox('Cumplimiento de plazo', m.otd == null ? null : Math.round(m.otd * 100) + '%',
+        m.otdN ? `sobre ${m.otdN} entregas` : 'faltan fechas de entrega', false)
+    ].join('');
+
+    // Franja: una barra por pedido activo, ordenadas por antigüedad.
+    const orden = activos
+      .map(p => ({ p, d: R.antiguedad(p) || 0 }))
+      .sort((a, b) => b.d - a.d);
+    const max = orden.length ? Math.max.apply(null, orden.map(x => x.d).concat([1])) : 1;
+
+    $('#strip').innerHTML = orden.length
+      ? orden.map(x => {
+          const h = Math.max(6, Math.round(x.d / max * 100));
+          return `<div class="seg ${x.p.semaforoPCP.color}" style="height:${h}%" data-ot="${esc(x.p.otNumber)}"
+            title="${esc(x.p.otNumber)} · ${esc(x.p.cliente)} · ${x.d} días"></div>`;
+        }).join('')
+      : '<div class="empty">Sin pedidos activos.</div>';
+
+    $('#axis').innerHTML = orden.length
+      ? `<span>${orden[0].d} días · más antiguo</span><span>${orden[orden.length - 1].d} días · más nuevo</span>`
+      : '';
+
+    $('#strip').querySelectorAll('.seg').forEach(s =>
+      s.addEventListener('click', () => abrirFicha(s.dataset.ot)));
+
+    const urgentes = orden.filter(x => x.p.semaforoPCP.color === 'r').slice(0, 8).map(x => x.p);
+    $('#urgentes').innerHTML = urgentes.length ? tablaDe(urgentes) : '<div class="empty">Nada vencido. Buen día.</div>';
+    enganchaFilas('#urgentes');
+  }
+
+  // -------------------------------------------------------------------
+  // Pedidos
+  // -------------------------------------------------------------------
+  const FILTROS = [
+    ['todos', 'Todos'], ['r', 'Vencidos'], ['a', 'Por vencer'],
+    ['v', 'En plazo'], ['cerrados', 'Entregados']
+  ];
+
+  function renderFiltros() {
+    $('#filtros').innerHTML = FILTROS.map(([k, t]) =>
+      `<button class="chip" data-f="${k}" aria-pressed="${k === filtro}">${esc(t)}</button>`).join('');
+    $('#filtros').querySelectorAll('.chip').forEach(c =>
+      c.addEventListener('click', () => { filtro = c.dataset.f; render(); }));
+  }
+
+  function listaFiltrada() {
+    const q = R.normalize($('#q').value);
+    let L = pedidos;
+
+    if (filtro === 'cerrados') L = L.filter(p => p.cerrado);
+    else if (filtro !== 'todos') L = L.filter(p => !p.cerrado && p.semaforoPCP.color === filtro);
+    else L = L.filter(p => !p.cerrado);
+
+    if (q) {
+      L = L.filter(p => R.normalize([
+        p.otNumber, p.cliente, p.piezasDescripcion,
+        p.material.raw, p.material.normalizado
+      ].join(' ')).includes(q));
+    }
+    return L.sort((a, b) => (R.antiguedad(b) || 0) - (R.antiguedad(a) || 0));
+  }
+
+  function tablaDe(L) {
+    return `<div class="tablebox"><table>
+      <thead><tr>
+        <th>OT</th><th>Cliente</th><th>Pieza</th><th>Fase</th>
+        <th class="num">Días</th><th>Estado</th>
+      </tr></thead>
+      <tbody>${L.map(p => `<tr data-ot="${esc(p.otNumber)}">
+        <td class="mono">${esc(p.otNumber)}</td>
+        <td class="cli">${esc(p.cliente)}</td>
+        <td class="desc">${esc(p.piezasDescripcion || '—')}<br>
+          <span class="pill">${esc(p.material.normalizado)}</span></td>
+        <td>${esc(p.fase)}${p.fasePendiente ? ' <span class="sync">·sync</span>' : ''}</td>
+        <td class="num mono">${R.antiguedad(p) == null ? '—' : R.antiguedad(p)}</td>
+        <td><span class="dot ${p.semaforoPCP.color}"></span>${esc(p.semaforoPCP.texto)}</td>
+      </tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function enganchaFilas(sel) {
+    document.querySelectorAll(sel + ' tbody tr').forEach(tr =>
+      tr.addEventListener('click', () => abrirFicha(tr.dataset.ot)));
+  }
+
+  function renderPedidos() {
+    renderFiltros();
+    const L = listaFiltrada();
+    $('#tabla').innerHTML = L.length ? tablaDe(L) : '<div class="empty">Ningún pedido coincide.</div>';
+    enganchaFilas('#tabla');
+  }
+
+  // -------------------------------------------------------------------
+  // Ficha lateral
+  // -------------------------------------------------------------------
+  function abrirFicha(ot) {
+    const p = pedidos.find(x => x.otNumber === ot);
+    if (!p) return;
+    abierto = ot;
+
+    const idx = R.FASES.indexOf(p.fase);
+    const pasos = R.FASES_ESTAMPABLES.map(f => {
+      const fecha = p.fechasFase[f];
+      const pos = R.FASES.indexOf(f);
+      const cls = fecha ? 'done' : (pos === idx + 1 ? 'now' : '');
+      return `<li class="${cls}">
+        <span class="mk"></span>
+        <div class="nm">${esc(f)}</div>
+        ${fecha
+          ? `<div class="dt">${esc(fecha)}</div>`
+          : `<button class="set" data-fase="${esc(f)}">marcar hoy</button>`}
+      </li>`;
+    }).join('');
+
+    $('#ficha').innerHTML = `
+      <div class="fh">
+        <button class="x" id="cerrarFicha" aria-label="Cerrar">&times;</button>
+        <b>${esc(p.otNumber)}</b>
+        <div class="cli">${esc(p.cliente)}</div>
+      </div>
+      <div class="fb">
+        <div class="row2">
+          <div><div class="fld">Ingreso</div><div class="mono">${esc(p.fechaIngreso || '—')}</div></div>
+          <div><div class="fld">Comprometida</div><div class="mono">${esc(p.fechaPrometida || 'sin fecha')}</div></div>
+          <div><div class="fld">Antigüedad</div><div class="mono">${R.antiguedad(p) ?? '—'} días</div></div>
+          <div><div class="fld">Estado</div><div><span class="dot ${p.semaforoPCP.color}"></span>${esc(p.semaforoPCP.texto)}</div></div>
+        </div>
+
+        <div class="fld" style="margin-top:16px">Piezas</div>
+        <div>${esc(p.piezasDescripcion || '—')}</div>
+        <div style="margin-top:6px">
+          <span class="pill">${esc(p.material.normalizado)}</span>
+          ${p.material.raw && p.material.raw !== p.material.normalizado
+            ? `<span class="pill">en planilla: ${esc(p.material.raw)}</span>` : ''}
+        </div>
+
+        <div class="fld" style="margin-top:16px">Avance ${p.cantidadCompletada}/${p.cantidadTotal} piezas</div>
+        <div class="agebar"><i style="width:${p.avance}%"></i></div>
+
+        <div class="fld" style="margin-top:18px">Recorrido</div>
+        <ul class="steps">${pasos}</ul>
+        <div id="fichaMsg"></div>
+      </div>`;
+
+    $('#ficha').classList.add('on');
+    $('#ficha').setAttribute('aria-hidden', 'false');
+    $('#scrim').classList.add('on');
+    $('#cerrarFicha').addEventListener('click', cerrarFicha);
+
+    $('#ficha').querySelectorAll('.set').forEach(b =>
+      b.addEventListener('click', () => marcar(p.otNumber, b.dataset.fase, b)));
+  }
+
+  function cerrarFicha() {
+    abierto = null;
+    $('#ficha').classList.remove('on');
+    $('#ficha').setAttribute('aria-hidden', 'true');
+    $('#scrim').classList.remove('on');
+  }
+  $('#scrim').addEventListener('click', cerrarFicha);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && abierto) cerrarFicha(); });
+
+  async function marcar(ot, fase, boton) {
+    boton.disabled = true;
+    boton.textContent = 'guardando...';
+    try {
+      await R.marcarFase(ot, fase);
+      const p = pedidos.find(x => x.otNumber === ot);
+      if (p) {
+        p.fechasFase[fase] = R.formatFecha(new Date());
+        p.fasePendiente = true;
+        const marcadas = R.FASES_ESTAMPABLES.filter(f => p.fechasFase[f]);
+        p.fase = marcadas.length ? marcadas[marcadas.length - 1] : 'Por cargar';
+        p.cerrado = R.FASES_CERRADAS.indexOf(p.fase) !== -1;
+        p.semaforoPCP = R.semaforoPCP(p);
+      }
+      abrirFicha(ot);
+      render();
+    } catch (err) {
+      boton.disabled = false;
+      boton.textContent = 'marcar hoy';
+      $('#fichaMsg').innerHTML = `<div class="err">${esc(err.message)}</div>`;
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Carga por sector + concentración
+  // -------------------------------------------------------------------
+  function barras(filas, formato) {
+    if (!filas.length) return '<div class="empty">Sin datos.</div>';
+    const max = Math.max.apply(null, filas.map(f => f.valor).concat([1]));
+    return `<div class="tablebox"><table><tbody>${filas.slice(0, 10).map(f => `<tr style="cursor:default">
+      <td style="width:34%">${esc(f.nombre)}</td>
+      <td><div class="agebar"><i style="width:${Math.round(f.valor / max * 100)}%"></i></div></td>
+      <td class="num mono" style="width:16%">${formato(f.valor)}</td>
+      <td class="num mono" style="width:12%">${Math.round(f.parte * 100)}%</td>
+    </tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function renderCarga() {
+    const activos = pedidos.filter(p => !p.cerrado);
+
+    $('#sectores').innerHTML = R.FASES.map(f => {
+      const enFase = activos.filter(p => p.fase === f);
+      const piezas = enFase.reduce((s, p) => s + (p.faltantes || 0), 0);
+      return `<div class="sector">
+        <div class="rot">${esc(f)}</div>
+        <div class="val">${enFase.length}</div>
+        <div class="pie">${piezas} piezas pendientes</div>
+      </div>`;
+    }).join('');
+
+    $('#porCliente').innerHTML = barras(
+      R.concentracion(activos, p => p.cliente, p => p.cantidadTotal), v => v + ' pzs');
+    $('#porMaterial').innerHTML = barras(
+      R.concentracion(activos, p => p.material.normalizado, p => p.cantidadTotal), v => v + ' pzs');
+  }
+
+  // -------------------------------------------------------------------
+  // Indicadores
+  // -------------------------------------------------------------------
+  function renderIndicadores() {
+    const m = R.metricas(pedidos);
+    const pct = v => v == null ? null : Math.round(v * 100) + '%';
+
+    const filas = [
+      ['Cumplimiento de plazo (OTD)', 'Entregados en fecha ÷ entregados con compromiso', pct(m.otd), '≥ 80%',
+        m.otdN ? `${m.otdN} entregas medibles` : 'Falta cargar fechas comprometidas y de entrega'],
+      ['Tiempo de ciclo (lead time)', 'Fecha de entrega − fecha de ingreso', m.lead == null ? null : m.lead + ' días', 'Medido y publicado',
+        m.leadN ? `${m.leadN} entregas medibles` : 'Falta cargar fechas reales de entrega'],
+      ['Backlog vencido', 'Activos con más de 30 días ÷ activos', pct(m.backlogVencido), '≤ 30%', `${m.pend} activos`],
+      ['Antigüedad promedio del backlog', 'Promedio de días de los activos', m.edadProm == null ? null : m.edadProm + ' días', '≤ 60 días',
+        m.edadMax != null ? `máximo ${m.edadMax} días` : ''],
+      ['Piezas en proceso (WIP)', 'Piezas de pedidos activos', m.piezas || null, '≤ 350', ''],
+      ['Valor del backlog', 'Gs. de pedidos activos', m.monto ? ('Gs. ' + gs(m.monto)) : null, '≤ 500 millones', ''],
+      ['Cobertura del programa', 'Pedidos con fecha comprometida ÷ total', pct(m.cobertura), '100%',
+        'Un pedido sin fecha comprometida no se puede controlar'],
+      ['Tasa de rechazo', 'Piezas rechazadas ÷ piezas producidas', pct(m.rechazo), 'Medido y publicado',
+        m.rechazoN ? `${m.rechazoN} pedidos con registro` : 'Falta registrar rechazos'],
+      ['Completitud del dato', 'Campos de control cargados ÷ campos esperados', pct(m.completitud), '100%',
+        'Fecha comprometida, fecha de entrega y peso']
+    ];
+
+    $('#kpiTable').innerHTML = `<div class="tablebox"><table class="kpitable"><thead><tr>
+      <th>Indicador</th><th>Cómo se calcula</th><th class="num">Hoy</th><th>Meta 90 días</th><th>Detalle</th>
+    </tr></thead><tbody>${filas.map(f => `<tr style="cursor:default">
+      <td>${esc(f[0])}</td>
+      <td style="color:var(--ink-soft);font-size:12.5px">${esc(f[1])}</td>
+      <td class="num mono ${f[2] == null ? 'na' : ''}">${f[2] == null ? 'No medible' : esc(f[2])}</td>
+      <td class="goal">${esc(f[3])}</td>
+      <td style="color:var(--ink-soft);font-size:12px">${esc(f[4])}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+
+    const faltan = filas.filter(f => f[2] == null).length;
+    $('#kpiNota').innerHTML = faltan
+      ? `<b>${faltan} de 9 indicadores todavía no se pueden calcular.</b> No es que estén mal: faltan los datos que los alimentan. Cada vez que cargues una fecha comprometida, una entrega real o un peso, estos números empiezan a existir.`
+      : `<b>Los nueve indicadores están activos.</b> A partir de acá la discusión pasa a ser sobre los números, no sobre impresiones.`;
+  }
+
+  // -------------------------------------------------------------------
+  // Ciclo
+  // -------------------------------------------------------------------
+  function render() {
+    if (vista === 'tablero') renderTablero();
+    else if (vista === 'pedidos') renderPedidos();
+    else if (vista === 'carga') renderCarga();
+    else if (vista === 'indicadores') renderIndicadores();
+  }
+
+  async function cargar() {
+    const res = await R.cargarOrdenes();
+    pedidos = res.ordenes;
+
+    $('#cargando').style.display = 'none';
+    $('#v-' + vista).classList.remove('hide');
+
+    $('#aviso').innerHTML = res.demo
+      ? `<div class="wrap" style="padding-bottom:0"><div class="err">Sin conexión con la planilla: se muestran datos de demostración.
+         <button id="reintentar">Reintentar</button></div></div>`
+      : '';
+    if (res.demo) $('#reintentar').addEventListener('click', cargar);
+
+    $('#foot').textContent = res.demo ? 'demostración' : 'en vivo';
+    render();
+    if (abierto) abrirFicha(abierto);
+  }
+
+  $('#q').addEventListener('input', R.debounce(() => { if (vista === 'pedidos') renderPedidos(); }, 150));
+  $('#btnRefrescar').addEventListener('click', cargar);
 
   cargar();
-  setInterval(() => cargar({ silent: true }), CONFIG.REFRESH_MS);
+  setInterval(cargar, R.CONFIG.REFRESH_MS);
 })();
 </script>
 
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js').catch(err => console.error('SW:', err));
+      navigator.serviceWorker.register('service-worker.js').catch(e => console.error('SW:', e));
     });
   }
 </script>
