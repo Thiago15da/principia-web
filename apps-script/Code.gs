@@ -204,6 +204,57 @@ function marcarFase(datos, idOt) {
   return jsonResponse({ ok: true, id_ot: idOt, fase: fase, fecha: fecha, yaEstaba: false });
 }
 
+/**
+ * Devuelve una fecha como texto 'yyyy-MM-dd'. La celda puede venir como
+ * string (lo que escribimos) o como Date, si Sheets la interpretó sola.
+ */
+function fechaTexto(valor) {
+  if (valor instanceof Date) {
+    return Utilities.formatDate(valor, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return String(valor || '').trim();
+}
+
+/**
+ * Devuelve todas las tandas cargadas en una fecha, de todos los sectores.
+ * Se pide por POST y no por doGet a propósito: el POST con text/plain ya
+ * está probado y no dispara preflight CORS, que Apps Script no responde.
+ */
+function leerDia(datos) {
+  const fecha = String(datos.fecha || '').trim() ||
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  const hoja = getHojaRegistro();
+  const valores = hoja.getDataRange().getValues();
+  if (valores.length < 2) return jsonResponse({ ok: true, fecha: fecha, filas: [] });
+
+  const encabezados = valores[0];
+  const idx = {};
+  COLUMNAS_REGISTRO.forEach(function (c) { idx[c] = indiceColumna(encabezados, c); });
+
+  const celda = function (fila, col) {
+    return idx[col] === -1 ? '' : fila[idx[col]];
+  };
+
+  const filas = [];
+  for (var i = 1; i < valores.length; i++) {
+    if (fechaTexto(celda(valores[i], 'fecha')) !== fecha) continue;
+    filas.push({
+      id: celda(valores[i], 'id'),
+      sector: String(celda(valores[i], 'sector') || ''),
+      operario: String(celda(valores[i], 'operario') || ''),
+      cantidad_moldes: Number(celda(valores[i], 'cantidad_moldes')) || 0,
+      kg_por_molde: Number(celda(valores[i], 'kg_por_molde')) || 0,
+      total_kg: Number(celda(valores[i], 'total_kg')) || 0,
+      pieza: String(celda(valores[i], 'pieza') || ''),
+      id_ot: String(celda(valores[i], 'id_ot') || ''),
+      observaciones: String(celda(valores[i], 'observaciones') || '')
+    });
+  }
+
+  return jsonResponse({ ok: true, fecha: fecha, filas: filas });
+}
+
 /** Chequeo de salud: abrir la URL del Web App en el navegador debe responder ok. */
 function doGet() {
   return jsonResponse({
@@ -260,6 +311,7 @@ function doPost(e) {
       if (!otFase) return jsonResponse({ ok: false, error: 'Falta la OT.' });
       return marcarFase(datos, otFase);
     }
+    if (accion === 'leer_dia') return leerDia(datos);
     if (accion !== 'carga_diaria') {
       return jsonResponse({ ok: false, error: 'Acción desconocida: ' + accion });
     }
