@@ -105,16 +105,6 @@
     <div style="margin-bottom:12px">
       <label class="lab" for="pieza">Pieza / Observaciones</label>
       <input id="pieza" class="campo" placeholder="Ej: Travesaño liviano" autocomplete="off">
-      <div id="sugerencias" class="sug"></div>
-      <input type="hidden" id="otSel">
-    </div>
-
-    <div id="bloquePiezas" class="hide" style="margin-bottom:12px">
-      <label class="lab" for="piezas">Piezas para esa OT</label>
-      <input id="piezas" class="campo" type="number" min="1" step="1" inputmode="numeric">
-      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px">
-        Se toma un molde = una pieza. Corregilo si de cada molde sale otra cantidad.
-      </div>
     </div>
 
     <button class="btn" id="guardar" type="submit" style="width:100%;padding:14px;font-size:15px;font-weight:600">
@@ -138,7 +128,6 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let sector = 'Moldeo';
-  let pedidos = [];
   let delDia = [];   // todas las tandas del día, leídas de la planilla
 
   $('#fecha').value = R.hoyISO();
@@ -167,36 +156,6 @@
   }
   $('#moldes').addEventListener('input', recalcular);
   $('#kg').addEventListener('input', recalcular);
-
-  // ---------------- sugerencia de OT desde la pieza ----------------
-  function pintarSugerencias() {
-    const texto = $('#pieza').value;
-    const cand = R.sugerirOT(texto, pedidos);
-    const sel = $('#otSel').value;
-
-    if (!cand.length) {
-      $('#sugerencias').innerHTML = texto.trim().length >= 3
-        ? '<span style="font-size:11.5px;color:var(--ink-soft)">Sin OT parecida. Se guarda igual.</span>' : '';
-      if (!sel) $('#bloquePiezas').classList.add('hide');
-      return;
-    }
-
-    $('#sugerencias').innerHTML =
-      '<span style="font-size:11.5px;color:var(--ink-soft);align-self:center">¿Es para…?</span>' +
-      cand.map(o => `<button type="button" data-ot="${esc(o.otNumber)}" aria-pressed="${o.otNumber === sel}">
-        ${esc(o.otNumber)} · ${esc(o.cliente)}</button>`).join('');
-
-    $('#sugerencias').querySelectorAll('button').forEach(b =>
-      b.addEventListener('click', () => {
-        const ot = b.dataset.ot;
-        const yaEstaba = $('#otSel').value === ot;
-        $('#otSel').value = yaEstaba ? '' : ot;      // volver a tocar la deselecciona
-        $('#bloquePiezas').classList.toggle('hide', yaEstaba);
-        if (!yaEstaba && !$('#piezas').value) $('#piezas').value = $('#moldes').value || '';
-        pintarSugerencias();
-      }));
-  }
-  $('#pieza').addEventListener('input', R.debounce(pintarSugerencias, 200));
 
   // ---------------- planilla del día ----------------
   const kg = n => Math.round(n).toLocaleString('es-PY');
@@ -235,14 +194,13 @@
 
     $('#filas').innerHTML = filas.length ? `<div class="tablebox"><table class="filas"><thead><tr>
         <th>Operario</th><th class="num">Moldes</th><th class="num">Kg/molde</th>
-        <th class="num">Total kg</th><th>Pieza</th><th>OT</th>
+        <th class="num">Total kg</th><th>Pieza / Observaciones</th>
       </tr></thead><tbody>${filas.map(f => `<tr style="cursor:default">
         <td>${esc(f.operario)}</td>
         <td class="num mono">${f.cantidad_moldes}</td>
         <td class="num mono">${f.kg_por_molde}</td>
         <td class="num mono"><b>${kg(f.total_kg)}</b></td>
         <td>${esc(f.pieza || '—')}</td>
-        <td class="mono">${f.id_ot ? esc(f.id_ot) : '—'}</td>
       </tr>`).join('')}</tbody></table></div>`
       : `<div class="empty">Sin tandas de ${esc(sector)} en esta fecha.</div>`;
   }
@@ -285,9 +243,7 @@
       operario: $('#operario').value.trim(),
       cantidad_moldes: moldes,
       kg_por_molde: kg,
-      pieza: $('#pieza').value.trim(),
-      id_ot: $('#otSel').value,
-      piezas: $('#otSel').value ? (Number($('#piezas').value) || moldes) : ''
+      pieza: $('#pieza').value.trim()
     };
 
     $('#guardar').disabled = true;
@@ -295,15 +251,11 @@
 
     try {
       const r = await R.registrarCargaDiaria(datos);
-      aviso(`Cargado: ${moldes} moldes · ${r.total_kg.toLocaleString('es-PY')} kg` +
-        (datos.id_ot ? ` · avance de ${datos.id_ot}` : ''), 'ok');
+      aviso(`Cargado: ${moldes} moldes · ${r.total_kg.toLocaleString('es-PY')} kg`, 'ok');
 
       // El operario y el sector se mantienen: normalmente carga varias
       // tandas seguidas del mismo turno.
-      ['moldes', 'kg', 'pieza', 'piezas'].forEach(id => { $('#' + id).value = ''; });
-      $('#otSel').value = '';
-      $('#bloquePiezas').classList.add('hide');
-      $('#sugerencias').innerHTML = '';
+      ['moldes', 'kg', 'pieza'].forEach(id => { $('#' + id).value = ''; });
       recalcular();
       $('#moldes').focus();
       await traerDia();
@@ -318,12 +270,7 @@
   // ---------------- init ----------------
   $('#fecha').addEventListener('change', traerDia);
 
-  (async () => {
-    const res = await R.cargarOrdenes();
-    pedidos = res.ordenes;
-    if (res.demo) aviso('Sin conexión con la planilla: las sugerencias de OT son de demostración.', 'warn');
-    await traerDia();
-  })();
+  traerDia();
 })();
 </script>
 

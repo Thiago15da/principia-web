@@ -13,10 +13,15 @@ window.RVH = (function () {
 
     // Escritura: URL del Web App de Apps Script (ver README.md).
     // Sin esto, la Carga Diaria no puede guardar.
-    API_URL: 'https://script.google.com/macros/s/AKfycbxCrc_NSqHUx2Kt91QUg8ScQQvKuYz69yD_y7V5m8x2jOT6-UVIr-9AFCzRkmmBf1PC/exec',
+    API_URL: 'https://script.google.com/macros/s/AKfycbyltIB4pnuWL1Vos3LcL68WBoiGwU6JJJoeAMC8icEYGYe00XXU7852c7l1xu-TrTnz/exec',
 
     // Debe coincidir con CONFIG.TOKEN en apps-script/Code.gs.
     API_TOKEN: 'rvh-pcp-2026',
+
+    // Debe coincidir con VERSION en apps-script/Code.gs. Si la planilla
+    // tiene publicada una versión anterior, los errores que devuelve no se
+    // parecen a la causa real, así que se detecta y se dice explícitamente.
+    API_VERSION: 3,
 
     REFRESH_MS: 60000,
 
@@ -784,6 +789,17 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     if (!res.ok) throw new Error(`El servidor respondió ${res.status}.`);
 
     const json = await res.json();
+
+    // Antes de mirar el resultado: si el script publicado es viejo, decirlo.
+    // Si no, devuelve cosas como "Falta la OT." en pedidos que ni tienen OT.
+    if (!json.version || json.version < CONFIG.API_VERSION) {
+      throw new Error(
+        'La planilla tiene publicada una versión vieja del script (v' +
+        (json.version || 'anterior') + ', se espera v' + CONFIG.API_VERSION + '). ' +
+        'Hay que volver a pegar Code.gs y publicar con Versión: "Nueva versión".'
+      );
+    }
+
     if (!json.ok) throw new Error(json.error || 'No se pudo guardar.');
     return json;
   }

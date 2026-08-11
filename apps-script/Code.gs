@@ -12,6 +12,11 @@
  * Ver README.md para los pasos de instalación.
  */
 
+// Se sube al cambiar el contrato con la web. La app lo compara y avisa si
+// la planilla quedó con una versión vieja publicada: sin esto, un script
+// desactualizado da errores que no se parecen en nada a la causa real.
+const VERSION = 3;
+
 const CONFIG = {
   // gid de la pestaña de órdenes de trabajo — es el mismo número que ya
   // aparece en la URL del CSV publicado (…&gid=296832343&…).
@@ -61,6 +66,7 @@ function normalizar(texto) {
 }
 
 function jsonResponse(obj) {
+  obj.version = VERSION;
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
@@ -339,44 +345,10 @@ function doPost(e) {
       Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
     const totalKg = moldes * kgPorMolde;
-    const idOt = String(datos.id_ot || '').trim();
 
-    // --- Avance de la OT, solo si se indicó una ---------------------------
-    var nuevoTotal = null;
-    var hojaOt = null, filaOt = -1, colCompletada = -1;
-
-    if (idOt) {
-      hojaOt = getHojaOrdenes();
-      const valores = hojaOt.getDataRange().getValues();
-      if (valores.length < 2) {
-        return jsonResponse({ ok: false, error: 'La planilla de órdenes está vacía.' });
-      }
-
-      const encabezados = valores[0];
-      const colOt = indiceColumna(encabezados, CONFIG.COL_OT);
-      if (colOt === -1) {
-        return jsonResponse({ ok: false, error: 'No se encontró la columna "OT".' });
-      }
-
-      for (var i = 1; i < valores.length; i++) {
-        if (String(valores[i][colOt]).trim() === idOt) { filaOt = i; break; }
-      }
-      if (filaOt === -1) {
-        return jsonResponse({ ok: false, error: 'No existe la OT ' + idOt + ' en la planilla.' });
-      }
-
-      // Cuántas piezas salieron. Por defecto se toma un molde = una pieza,
-      // pero llega desde la web para que el operario pueda corregirlo.
-      const piezas = Number(datos.piezas);
-      const piezasFinal = (isFinite(piezas) && piezas > 0) ? piezas : moldes;
-
-      colCompletada = asegurarColumnaCompletada(hojaOt, encabezados);
-      nuevoTotal = (Number(valores[filaOt][colCompletada]) || 0) + piezasFinal;
-    }
-
-    // --- Escribir ---------------------------------------------------------
-    // Primero el parte diario: es el dato de origen, el equivalente de la
-    // hoja de papel. Si algo falla después, queda el registro.
+    // El parte diario mide producción del sector y nada más: no toca las
+    // OT. En la planilla de papel tampoco figura ninguna, y obligar a
+    // relacionarlas solo agregaba fricción al operario.
     const hojaRegistro = getHojaRegistro();
     const nuevoId = Math.max(0, hojaRegistro.getLastRow() - 1) + 1;
 
@@ -389,14 +361,8 @@ function doPost(e) {
       kg_por_molde: kgPorMolde,
       total_kg: totalKg,
       pieza: String(datos.pieza || '').trim(),
-      id_ot: idOt,
-      piezas: idOt ? (Number(datos.piezas) || moldes) : '',
       observaciones: String(datos.observaciones || '').trim()
     });
-
-    if (nuevoTotal !== null) {
-      hojaOt.getRange(filaOt + 1, colCompletada + 1).setValue(nuevoTotal);
-    }
     SpreadsheetApp.flush();
 
     return jsonResponse({
@@ -405,10 +371,7 @@ function doPost(e) {
       fecha: fecha,
       sector: sector,
       total_kg: totalKg,
-      id_ot: idOt,
-      // La web usa esto para reflejar el avance al instante, sin esperar a
-      // que el CSV publicado se actualice (tarda unos minutos).
-      cantidad_completada: nuevoTotal
+      total_moldes: moldes
     });
 
   } catch (err) {
