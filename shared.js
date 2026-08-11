@@ -794,9 +794,12 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     // Si no, devuelve cosas como "Falta la OT." en pedidos que ni tienen OT.
     if (!json.version || json.version < CONFIG.API_VERSION) {
       throw new Error(
-        'La planilla tiene publicada una versión vieja del script (v' +
-        (json.version || 'anterior') + ', se espera v' + CONFIG.API_VERSION + '). ' +
-        'Hay que volver a pegar Code.gs y publicar con Versión: "Nueva versión".'
+        'El script publicado en la planilla está desactualizado (' +
+        (json.version ? 'v' + json.version : 'anterior a v1') +
+        ', se necesita v' + CONFIG.API_VERSION + '). ' +
+        'Copiá de nuevo Code.gs y publicá desde Administrar implementaciones ' +
+        'con el lápiz ✏️ de la implementación que ya existe, eligiendo ' +
+        'Versión: "Nueva versión" (así la URL no cambia).'
       );
     }
 
