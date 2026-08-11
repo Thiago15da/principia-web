@@ -26,7 +26,10 @@ window.RVH = (function () {
     DIAS_ALERTA: 10       // faltan menos de N => amarillo
   };
 
-  const PROCESOS = ['Carpintería', 'Moldeo', 'Fundición', 'Terminación'];
+  // Sectores con planilla diaria propia. (PROCESOS queda como alias del
+  // mismo listado por compatibilidad con lo ya escrito.)
+  const SECTORES = ['Carpintería', 'Moldeo', 'Fundición', 'Terminación'];
+  const PROCESOS = SECTORES;
   const ESTADOS = ['A realizar', 'En proceso', 'Terminado'];
 
   // Recorrido productivo de un pedido. Cada fase, al marcarse, estampa su
@@ -786,11 +789,40 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   }
 
   async function registrarCargaDiaria(datos) {
-    // Sin `accion` el backend asume carga diaria: así carga.html sigue
-    // funcionando exactamente igual que antes de existir el PCP.
     const json = await enviar(Object.assign({ accion: 'carga_diaria' }, datos));
-    guardarAvancePendiente(json.id_ot, json.cantidad_completada);
+    // Solo hay avance que reflejar si la carga se asoció a una OT.
+    if (json.id_ot && json.cantidad_completada != null) {
+      guardarAvancePendiente(json.id_ot, json.cantidad_completada);
+    }
     return json;
+  }
+
+  /**
+   * Sugiere OTs a partir del nombre de la pieza. En la planilla de papel no
+   * figura el número de OT: lo que se anota es la pieza ("Travesaño
+   * liviano"), y alguien lo cruza después. Esto hace ese cruce en el momento,
+   * sin obligar al operario a saber el número.
+   */
+  function sugerirOT(textoPieza, ordenes) {
+    const q = normalize(textoPieza);
+    if (q.length < 3) return [];
+
+    const palabras = q.split(/\s+/).filter(p => p.length >= 3);
+    if (!palabras.length) return [];
+
+    return ordenes
+      .filter(o => !o.cerrado)
+      .map(o => {
+        const heno = normalize(o.piezasDescripcion + ' ' + o.cliente);
+        // Cuenta cuántas palabras de la pieza aparecen en el pedido: así
+        // "travesaño liviano" pesa más que un pedido que solo dice "travesaño".
+        const aciertos = palabras.filter(p => heno.includes(p)).length;
+        return { orden: o, aciertos };
+      })
+      .filter(x => x.aciertos > 0)
+      .sort((a, b) => b.aciertos - a.aciertos)
+      .slice(0, 5)
+      .map(x => x.orden);
   }
 
   /** Estampa la fecha de una fase en la OT. Sin fecha, usa hoy. */
@@ -838,6 +870,8 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   return {
     CONFIG,
     PROCESOS,
+    SECTORES,
+    sugerirOT,
     ESTADOS,
     FASES,
     FASES_ESTAMPABLES,

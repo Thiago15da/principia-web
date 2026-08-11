@@ -30,11 +30,17 @@ const CONFIG = {
   COL_COMPLETADA: 'Cantidad Completada'
 };
 
+// Calcado de la "Planilla Oficial de Control Diario de Producción": una
+// fila por tanda, con operario, moldes y kilos. `pieza` es lo que en el
+// papel va en Observaciones y es lo que permite deducir a qué OT
+// corresponde. `id_ot` y `piezas` son opcionales: el operario no siempre
+// sabe el número de OT, y no se le va a exigir.
 const COLUMNAS_REGISTRO = [
-  'id', 'fecha', 'id_ot', 'proceso', 'equipo', 'cantidad_procesada', 'observaciones'
+  'id', 'fecha', 'sector', 'operario', 'cantidad_moldes', 'kg_por_molde',
+  'total_kg', 'pieza', 'id_ot', 'piezas', 'observaciones'
 ];
 
-const PROCESOS_VALIDOS = ['Carpintería', 'Moldeo', 'Fundición', 'Terminación'];
+const SECTORES_VALIDOS = ['Carpintería', 'Moldeo', 'Fundición', 'Terminación'];
 
 // Fases que se estampan con fecha. La columna va prefijada con "Fecha "
 // porque "Moldeo" y "Terminación" ya se usan como columnas de cantidad.
@@ -70,16 +76,52 @@ function getHojaOrdenes() {
   return hojas[0];
 }
 
-/** Devuelve la hoja del parte diario, creándola con encabezados si falta. */
+/**
+ * Devuelve la hoja del parte diario, creándola si falta y agregando las
+ * columnas que no estén. Se escribe siempre por nombre de encabezado, no
+ * por posición: así una planilla creada con una versión anterior del
+ * script sigue funcionando y solo se le suman las columnas nuevas.
+ */
 function getHojaRegistro() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja = ss.getSheetByName(CONFIG.HOJA_REGISTRO);
+
   if (!hoja) {
     hoja = ss.insertSheet(CONFIG.HOJA_REGISTRO);
     hoja.appendRow(COLUMNAS_REGISTRO);
     hoja.setFrozenRows(1);
     hoja.getRange(1, 1, 1, COLUMNAS_REGISTRO.length).setFontWeight('bold');
+    return hoja;
   }
+
+  var encabezados = hoja.getLastColumn()
+    ? hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0]
+    : [];
+
+  COLUMNAS_REGISTRO.forEach(function (col) {
+    if (indiceColumna(encabezados, col) === -1) {
+      encabezados.push(col);
+      hoja.getRange(1, encabezados.length).setValue(col).setFontWeight('bold');
+    }
+  });
+
+  return hoja;
+}
+
+/** Agrega una fila al parte diario ubicando cada valor por su encabezado. */
+function agregarRegistro(datos) {
+  const hoja = getHojaRegistro();
+  const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+
+  const fila = encabezados.map(function (col) {
+    const clave = normalizar(col);
+    for (var k in datos) {
+      if (normalizar(k) === clave) return datos[k];
+    }
+    return '';
+  });
+
+  hoja.appendRow(fila);
   return hoja;
 }
 
@@ -173,12 +215,16 @@ function doGet() {
 }
 
 /**
- * Registra una carga diaria.
+ * Registra una carga diaria, calcada de la planilla de papel del sector.
  *
  * Body (text/plain con JSON adentro — se manda así a propósito para que el
  * navegador lo trate como "simple request" y no dispare preflight CORS,
  * que Apps Script no sabe responder):
- *   { token, fecha, id_ot, proceso, equipo, cantidad_procesada, observaciones }
+ *   { token, fecha, sector, operario, cantidad_moldes, kg_por_molde,
+ *     pieza, id_ot?, piezas?, observaciones? }
+ *
+ * `id_ot` es opcional: en el papel no figura, y el operario no siempre la
+ * sabe. Si viene, se suma `piezas` al avance de esa OT.
  */
 function doPost(e) {
   const lock = LockService.getScriptLock();
@@ -207,87 +253,109 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: 'Token inválido.' });
     }
 
-    // Sin `accion` se asume carga diaria: así las versiones previas de
-    // carga.html siguen funcionando sin cambiarles una línea.
     const accion = String(datos.accion || 'carga_diaria').trim();
 
-    // --- Validación -------------------------------------------------------
-    const idOt = String(datos.id_ot || '').trim();
-    if (!idOt) return jsonResponse({ ok: false, error: 'Falta la OT.' });
-
-    if (accion === 'marcar_fase') return marcarFase(datos, idOt);
+    if (accion === 'marcar_fase') {
+      const otFase = String(datos.id_ot || '').trim();
+      if (!otFase) return jsonResponse({ ok: false, error: 'Falta la OT.' });
+      return marcarFase(datos, otFase);
+    }
     if (accion !== 'carga_diaria') {
       return jsonResponse({ ok: false, error: 'Acción desconocida: ' + accion });
     }
 
-    const cantidad = Number(datos.cantidad_procesada);
-    if (!isFinite(cantidad) || cantidad <= 0) {
-      return jsonResponse({ ok: false, error: 'La cantidad procesada debe ser un número mayor a 0.' });
+    // --- Validación -------------------------------------------------------
+    const sector = String(datos.sector || '').trim();
+    if (SECTORES_VALIDOS.indexOf(sector) === -1) {
+      return jsonResponse({ ok: false, error: 'Sector inválido: ' + sector });
     }
 
-    const proceso = String(datos.proceso || '').trim();
-    if (PROCESOS_VALIDOS.indexOf(proceso) === -1) {
-      return jsonResponse({ ok: false, error: 'Proceso inválido: ' + proceso });
+    const moldes = Number(datos.cantidad_moldes);
+    if (!isFinite(moldes) || moldes <= 0) {
+      return jsonResponse({ ok: false, error: 'La cantidad de moldes debe ser mayor a 0.' });
     }
+
+    const kgPorMolde = Number(datos.kg_por_molde);
+    if (!isFinite(kgPorMolde) || kgPorMolde < 0) {
+      return jsonResponse({ ok: false, error: 'Los kg por molde deben ser un número.' });
+    }
+
+    const operario = String(datos.operario || '').trim();
+    if (!operario) return jsonResponse({ ok: false, error: 'Falta el operario.' });
 
     const fecha = String(datos.fecha || '').trim() ||
       Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
-    // --- Ubicar la OT -----------------------------------------------------
-    const hojaOt = getHojaOrdenes();
-    const valores = hojaOt.getDataRange().getValues();
-    if (valores.length < 2) {
-      return jsonResponse({ ok: false, error: 'La planilla de órdenes está vacía.' });
-    }
+    const totalKg = moldes * kgPorMolde;
+    const idOt = String(datos.id_ot || '').trim();
 
-    const encabezados = valores[0];
-    const colOt = indiceColumna(encabezados, CONFIG.COL_OT);
-    if (colOt === -1) {
-      return jsonResponse({ ok: false, error: 'No se encontró la columna "OT" en la planilla.' });
-    }
+    // --- Avance de la OT, solo si se indicó una ---------------------------
+    var nuevoTotal = null;
+    var hojaOt = null, filaOt = -1, colCompletada = -1;
 
-    // Una OT ocupa varias filas (una por pieza) y el número solo figura en la
-    // primera: esa fila es la que representa a la OT completa, y ahí vive el
-    // avance acumulado.
-    var filaOt = -1;
-    for (var i = 1; i < valores.length; i++) {
-      if (String(valores[i][colOt]).trim() === idOt) { filaOt = i; break; }
-    }
-    if (filaOt === -1) {
-      return jsonResponse({ ok: false, error: 'No existe la OT ' + idOt + ' en la planilla.' });
-    }
+    if (idOt) {
+      hojaOt = getHojaOrdenes();
+      const valores = hojaOt.getDataRange().getValues();
+      if (valores.length < 2) {
+        return jsonResponse({ ok: false, error: 'La planilla de órdenes está vacía.' });
+      }
 
-    const colCompletada = asegurarColumnaCompletada(hojaOt, encabezados);
+      const encabezados = valores[0];
+      const colOt = indiceColumna(encabezados, CONFIG.COL_OT);
+      if (colOt === -1) {
+        return jsonResponse({ ok: false, error: 'No se encontró la columna "OT".' });
+      }
 
-    const previo = Number(valores[filaOt][colCompletada]) || 0;
-    const nuevoTotal = previo + cantidad;
+      for (var i = 1; i < valores.length; i++) {
+        if (String(valores[i][colOt]).trim() === idOt) { filaOt = i; break; }
+      }
+      if (filaOt === -1) {
+        return jsonResponse({ ok: false, error: 'No existe la OT ' + idOt + ' en la planilla.' });
+      }
+
+      // Cuántas piezas salieron. Por defecto se toma un molde = una pieza,
+      // pero llega desde la web para que el operario pueda corregirlo.
+      const piezas = Number(datos.piezas);
+      const piezasFinal = (isFinite(piezas) && piezas > 0) ? piezas : moldes;
+
+      colCompletada = asegurarColumnaCompletada(hojaOt, encabezados);
+      nuevoTotal = (Number(valores[filaOt][colCompletada]) || 0) + piezasFinal;
+    }
 
     // --- Escribir ---------------------------------------------------------
-    // Primero el parte diario: es el dato de origen. Si algo falla después,
-    // queda el registro para reconstruir el acumulado.
+    // Primero el parte diario: es el dato de origen, el equivalente de la
+    // hoja de papel. Si algo falla después, queda el registro.
     const hojaRegistro = getHojaRegistro();
     const nuevoId = Math.max(0, hojaRegistro.getLastRow() - 1) + 1;
 
-    hojaRegistro.appendRow([
-      nuevoId,
-      fecha,
-      idOt,
-      proceso,
-      String(datos.equipo || '').trim(),
-      cantidad,
-      String(datos.observaciones || '').trim()
-    ]);
+    agregarRegistro({
+      id: nuevoId,
+      fecha: fecha,
+      sector: sector,
+      operario: operario,
+      cantidad_moldes: moldes,
+      kg_por_molde: kgPorMolde,
+      total_kg: totalKg,
+      pieza: String(datos.pieza || '').trim(),
+      id_ot: idOt,
+      piezas: idOt ? (Number(datos.piezas) || moldes) : '',
+      observaciones: String(datos.observaciones || '').trim()
+    });
 
-    hojaOt.getRange(filaOt + 1, colCompletada + 1).setValue(nuevoTotal);
+    if (nuevoTotal !== null) {
+      hojaOt.getRange(filaOt + 1, colCompletada + 1).setValue(nuevoTotal);
+    }
     SpreadsheetApp.flush();
 
     return jsonResponse({
       ok: true,
       id: nuevoId,
+      fecha: fecha,
+      sector: sector,
+      total_kg: totalKg,
       id_ot: idOt,
-      cantidad_procesada: cantidad,
-      // La web usa este valor para reflejar el avance al instante, sin
-      // esperar a que el CSV publicado se actualice (tarda unos minutos).
+      // La web usa esto para reflejar el avance al instante, sin esperar a
+      // que el CSV publicado se actualice (tarda unos minutos).
       cantidad_completada: nuevoTotal
     });
 
