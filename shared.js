@@ -13,7 +13,7 @@ window.RVH = (function () {
 
     // Escritura: URL del Web App de Apps Script (ver README.md).
     // Sin esto, la Carga Diaria no puede guardar.
-    API_URL: '',
+    API_URL: 'https://script.google.com/macros/s/AKfycbxCrc_NSqHUx2Kt91QUg8ScQQvKuYz69yD_y7V5m8x2jOT6-UVIr-9AFCzRkmmBf1PC/exec',
 
     // Debe coincidir con CONFIG.TOKEN en apps-script/Code.gs.
     API_TOKEN: 'rvh-pcp-2026',
