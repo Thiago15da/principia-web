@@ -40,6 +40,15 @@
     color:var(--steel);border-radius:2px;font-size:12px;font-weight:600;cursor:pointer}
   .sug button[aria-pressed="true"]{background:var(--steel);color:#fff}
   .filas td{font-size:13px}
+  .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .tarj{background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:12px 14px}
+  .tarj.act{border-color:var(--steel);box-shadow:inset 3px 0 0 var(--steel)}
+  .tarj .rot{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  .tarj .val{font-family:var(--cond);font-size:27px;font-weight:700;line-height:1.1;margin-top:3px}
+  .tarj .pie{font-size:11.5px;color:var(--ink-soft)}
+  .granTotal{background:var(--steel-dk);color:#fff;border-radius:2px;padding:14px 18px;
+    display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap}
+  .granTotal .val{font-family:var(--cond);font-size:34px;font-weight:700;line-height:1}
   @media (max-width:640px){ .grid3{grid-template-columns:1fr} }
 </style>
 </head>
@@ -113,7 +122,8 @@
     </button>
   </form>
 
-  <h2 class="sec">Cargado hoy</h2>
+  <h2 class="sec">Producción del día</h2>
+  <div id="resumen"></div>
   <div id="filas"></div>
 </div>
 
@@ -129,7 +139,7 @@
 
   let sector = 'Moldeo';
   let pedidos = [];
-  let delDia = [];   // lo cargado en esta sesión, por sector
+  let delDia = [];   // todas las tandas del día, leídas de la planilla
 
   $('#fecha').value = R.hoyISO();
 
@@ -189,10 +199,39 @@
   $('#pieza').addEventListener('input', R.debounce(pintarSugerencias, 200));
 
   // ---------------- planilla del día ----------------
+  const kg = n => Math.round(n).toLocaleString('es-PY');
+
   function pintar() {
     const filas = delDia.filter(f => f.sector === sector);
     const total = filas.reduce((s, f) => s + f.total_kg, 0);
-    $('#totalKg').innerHTML = total.toLocaleString('es-PY') + ' <span>kg</span>';
+    $('#totalKg').innerHTML = kg(total) + ' <span>kg</span>';
+
+    // Resumen: todo el día de un vistazo, los cuatro sectores juntos.
+    const totalGral = delDia.reduce((s, f) => s + f.total_kg, 0);
+    const moldesGral = delDia.reduce((s, f) => s + f.cantidad_moldes, 0);
+
+    $('#resumen').innerHTML = `
+      <div class="granTotal">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.75">
+            Total de la planta · ${esc(fechaLinda($('#fecha').value))}</div>
+          <div style="font-size:12px;opacity:.8;margin-top:2px">
+            ${moldesGral} moldes en ${delDia.length} tanda${delDia.length === 1 ? '' : 's'}</div>
+        </div>
+        <div class="val">${kg(totalGral)} <span style="font-size:16px;opacity:.8">kg</span></div>
+      </div>
+      <div class="resumen">${R.SECTORES.map(sec => {
+        const f = delDia.filter(x => x.sector === sec);
+        const t = f.reduce((s, x) => s + x.total_kg, 0);
+        const op = Array.from(new Set(f.map(x => x.operario).filter(Boolean)));
+        return `<div class="tarj ${sec === sector ? 'act' : ''}">
+          <div class="rot">${esc(sec)}</div>
+          <div class="val" style="color:${t ? 'var(--ink)' : 'var(--neutro)'}">${kg(t)}<span
+            style="font-size:13px;color:var(--ink-soft)"> kg</span></div>
+          <div class="pie">${f.length ? f.length + ' tanda' + (f.length === 1 ? '' : 's') : 'sin cargar'}${
+            op.length ? ' · ' + esc(op.join(', ')) : ''}</div>
+        </div>`;
+      }).join('')}</div>`;
 
     $('#filas').innerHTML = filas.length ? `<div class="tablebox"><table class="filas"><thead><tr>
         <th>Operario</th><th class="num">Moldes</th><th class="num">Kg/molde</th>
@@ -201,11 +240,27 @@
         <td>${esc(f.operario)}</td>
         <td class="num mono">${f.cantidad_moldes}</td>
         <td class="num mono">${f.kg_por_molde}</td>
-        <td class="num mono"><b>${f.total_kg.toLocaleString('es-PY')}</b></td>
+        <td class="num mono"><b>${kg(f.total_kg)}</b></td>
         <td>${esc(f.pieza || '—')}</td>
         <td class="mono">${f.id_ot ? esc(f.id_ot) : '—'}</td>
       </tr>`).join('')}</tbody></table></div>`
-      : '<div class="empty">Todavía no cargaste nada en este sector hoy.</div>';
+      : `<div class="empty">Sin tandas de ${esc(sector)} en esta fecha.</div>`;
+  }
+
+  function fechaLinda(iso) {
+    const d = R.parseFecha(iso);
+    return d ? R.formatFecha(d) : iso;
+  }
+
+  /** Trae de la planilla todo lo cargado en la fecha elegida. */
+  async function traerDia() {
+    try {
+      delDia = await R.leerDia($('#fecha').value);
+    } catch (err) {
+      // Si no se puede leer, al menos no perdemos lo de esta sesión.
+      aviso('No se pudo leer la producción del día: ' + err.message, 'warn');
+    }
+    pintar();
   }
 
   function aviso(msg, tipo) {
@@ -240,7 +295,6 @@
 
     try {
       const r = await R.registrarCargaDiaria(datos);
-      delDia.unshift(Object.assign({}, datos, { total_kg: r.total_kg }));
       aviso(`Cargado: ${moldes} moldes · ${r.total_kg.toLocaleString('es-PY')} kg` +
         (datos.id_ot ? ` · avance de ${datos.id_ot}` : ''), 'ok');
 
@@ -251,8 +305,8 @@
       $('#bloquePiezas').classList.add('hide');
       $('#sugerencias').innerHTML = '';
       recalcular();
-      pintar();
       $('#moldes').focus();
+      await traerDia();
     } catch (err) {
       aviso(err.message || 'No se pudo guardar.', 'err');
     } finally {
@@ -262,11 +316,13 @@
   });
 
   // ---------------- init ----------------
+  $('#fecha').addEventListener('change', traerDia);
+
   (async () => {
     const res = await R.cargarOrdenes();
     pedidos = res.ordenes;
     if (res.demo) aviso('Sin conexión con la planilla: las sugerencias de OT son de demostración.', 'warn');
-    pintar();
+    await traerDia();
   })();
 })();
 </script>

@@ -825,6 +825,12 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       .map(x => x.orden);
   }
 
+  /** Trae todas las tandas cargadas en una fecha, de todos los sectores. */
+  async function leerDia(fecha) {
+    const json = await enviar({ accion: 'leer_dia', fecha: fecha || hoyISO() });
+    return json.filas || [];
+  }
+
   /** Estampa la fecha de una fase en la OT. Sin fecha, usa hoy. */
   async function marcarFase(otNumber, fase, fecha) {
     if (FASES_ESTAMPABLES.indexOf(fase) === -1) {
@@ -884,6 +890,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     metricas,
     concentracion,
     marcarFase,
+    leerDia,
     DEMO_CSV,
     SEMAFORO_UI,
     normalize,
