@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'rvh-pcp-static-v4';
+const CACHE_NAME = 'rvh-pcp-static-v5';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -59,21 +59,23 @@ self.addEventListener('fetch', event => {
   // Solo cacheamos nuestros propios assets estáticos (GET, mismo origen).
   if (url.origin !== self.location.origin) return;
 
-  // Stale-while-revalidate: responde rápido con lo cacheado si existe,
-  // y de fondo actualiza la caché con la versión más nueva del asset.
+  // Red primero, caché como respaldo.
+  //
+  // Antes era al revés (stale-while-revalidate) y traía un problema real:
+  // al publicar un cambio, la primera carga seguía usando el código viejo
+  // y hacía falta recargar dos veces. Un deploy parecía no haber ocurrido.
+  // Como la app igual no sirve sin conexión —necesita la planilla—, tener
+  // siempre la versión correcta del código vale más que ahorrar milisegundos
+  // al abrir. La caché queda para que la pantalla no muera si se corta la señal.
   event.respondWith(
-    caches.match(request).then(cached => {
-      const networkFetch = fetch(request)
-        .then(response => {
-          if (response && response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached);
-
-      return cached || networkFetch;
-    })
+    fetch(request)
+      .then(response => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });
