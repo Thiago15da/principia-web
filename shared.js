@@ -764,7 +764,12 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
    */
   async function enviar(cuerpo) {
     if (!CONFIG.API_URL) {
-      throw new Error('Falta configurar CONFIG.API_URL en shared.js (ver README.md).');
+      throw new Error(
+        'Todavía no se puede guardar: falta publicar el Apps Script de la planilla. ' +
+        'En la planilla: Extensiones → Apps Script → Implementar → Nueva implementación → ' +
+        'Aplicación web (ejecutar como "Yo", acceso "Cualquier usuario"). ' +
+        'Después pegá la URL que termina en /exec en CONFIG.API_URL de shared.js.'
+      );
     }
 
     const res = await fetch(CONFIG.API_URL, {
