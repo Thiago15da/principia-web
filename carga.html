@@ -3,316 +3,278 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RVH Fundición | Carga Diaria</title>
+<title>Control Diario · RVH Fundición</title>
 
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f2942">
+<meta name="theme-color" content="#1E353B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="RVH Carga">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          rvh: {
-            bg: '#f1f5f9', navy: '#0f2942', navyLight: '#1e3a8a',
-            steel: '#475569', amber: '#d97706', border: '#e2e8f0'
-          }
-        }
-      }
-    }
-  }
-</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-  /* Controles grandes: se cargan de pie en la planta, muchas veces desde el celular. */
-  .campo {
-    width: 100%; padding: 0.85rem 1rem; font-size: 1rem; font-weight: 600;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 0.6rem; outline: none;
-  }
-  .campo:focus { box-shadow: 0 0 0 3px rgba(30,58,138,.18); border-color: #1e3a8a; }
-  .chip {
-    padding: 0.7rem 0.5rem; border-radius: 0.6rem; border: 1px solid #e2e8f0;
-    background: #fff; font-weight: 700; font-size: .875rem; cursor: pointer;
-    transition: all .12s ease;
-  }
-  .chip:hover { border-color: #1e3a8a; color: #1e3a8a; }
-  .chip[aria-pressed="true"] { background: #0f2942; color: #fff; border-color: #0f2942; }
-  .toast { animation: toast-in .25s ease-out; }
-  @keyframes toast-in { from { opacity:0; transform: translateY(-8px);} to {opacity:1; transform:translateY(0);} }
+  .hoja{max-width:900px;margin:0 auto;padding:18px 14px 60px}
+  .cab{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .total{background:var(--steel-dk);color:#fff;border-radius:2px;padding:14px 20px;text-align:right}
+  .total .rot{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.75}
+  .total .val{font-family:var(--cond);font-size:38px;font-weight:700;line-height:1}
+  .total .val span{font-size:17px;opacity:.8}
+  .secbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .secbar button{padding:9px 14px;border:1px solid var(--rule);background:var(--surface);
+    font-weight:600;font-size:13.5px;border-radius:2px;cursor:pointer}
+  .secbar button[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:#fff}
+  .campo{width:100%;padding:11px 12px;font-size:16px;font-weight:500;background:var(--surface);
+    border:1px solid var(--rule);border-radius:2px;outline:none;font-family:var(--sans)}
+  .campo:focus{border-color:var(--steel);box-shadow:0 0 0 3px rgba(44,74,82,.15)}
+  .lab{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:600;margin-bottom:5px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .calc{background:var(--sand);border:1px dashed var(--rule);border-radius:2px;
+    padding:11px 12px;font-family:var(--mono);font-size:15px;font-weight:600}
+  .sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .sug button{padding:5px 9px;border:1px solid var(--steel);background:var(--surface);
+    color:var(--steel);border-radius:2px;font-size:12px;font-weight:600;cursor:pointer}
+  .sug button[aria-pressed="true"]{background:var(--steel);color:#fff}
+  .filas td{font-size:13px}
+  @media (max-width:640px){ .grid3{grid-template-columns:1fr} }
 </style>
 </head>
-<body class="bg-rvh-bg text-slate-800 min-h-screen">
+<body>
 
-  <header class="sticky top-0 z-20 bg-rvh-navy text-white shadow-md">
-    <div class="max-w-3xl mx-auto px-4 md:px-6 py-3 flex flex-wrap gap-3 items-center justify-between">
-      <div class="flex items-center gap-3">
-        <img src="IMG_8258.png" alt="RVH Logo"
-          style="max-height: 46px; height: 46px; width: auto; object-fit: contain;"
-          class="rounded-lg bg-white/10 border border-white/20 p-1"
-          onerror="this.style.display='none';">
-        <div>
-          <h1 class="text-base md:text-lg font-bold leading-tight">Carga Diaria</h1>
-          <p class="text-[11px] text-slate-300 font-semibold uppercase tracking-wide">Parte de producción del turno</p>
-        </div>
-      </div>
-      <a href="index.html" class="px-3 py-2 rounded-lg text-sm font-bold bg-white/10 border border-white/20 hover:bg-white/20 transition">← Dashboard PCP</a>
+<div class="topbar" style="position:sticky;top:0;z-index:20">
+  <img src="IMG_8258.png" alt="RVH" style="height:38px;width:auto;object-fit:contain" onerror="this.style.display='none'">
+  <div style="flex:1;min-width:120px">
+    <b style="font-family:var(--cond);font-size:20px;letter-spacing:.02em">CONTROL DIARIO</b>
+    <div style="font-size:11px;color:var(--ink-soft)">Planilla de producción por sector</div>
+  </div>
+  <a class="btn ghost" href="index.html">Tablero</a>
+</div>
+
+<div class="hoja">
+
+  <div id="aviso"></div>
+
+  <div class="cab">
+    <div>
+      <span class="lab">Fecha</span>
+      <input id="fecha" type="date" class="campo" style="width:auto">
     </div>
-  </header>
+    <div class="total">
+      <div class="rot">Total del día · <span id="totalSector">Moldeo</span></div>
+      <div class="val" id="totalKg">0 <span>kg</span></div>
+    </div>
+  </div>
 
-  <main class="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5">
+  <div class="secbar" id="secbar"></div>
 
-    <div id="feedback" class="hidden rounded-xl px-4 py-3 text-sm font-bold toast"></div>
+  <!-- ---------- carga ---------- -->
+  <form id="form" style="background:var(--surface);border:1px solid var(--rule);padding:16px;border-radius:2px">
+    <div style="margin-bottom:12px">
+      <label class="lab" for="operario">Operario</label>
+      <input id="operario" class="campo" placeholder="Ej: Pablo y Max" autocomplete="off" required>
+    </div>
 
-    <form id="form-carga" class="bg-white border border-rvh-border rounded-xl shadow-sm p-5 space-y-5">
-
-      <div class="grid sm:grid-cols-2 gap-4">
-        <div>
-          <label for="fecha" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Fecha</label>
-          <input id="fecha" name="fecha" type="date" class="campo" required>
-        </div>
-        <div>
-          <label for="equipo" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Equipo / Responsable</label>
-          <input id="equipo" name="equipo" type="text" class="campo" placeholder="Ej: Turno mañana" autocomplete="off" required>
-        </div>
-      </div>
-
+    <div class="grid3" style="margin-bottom:12px">
       <div>
-        <span class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Proceso</span>
-        <div id="procesos" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
-        <input id="proceso" name="proceso" type="hidden" required>
+        <label class="lab" for="moldes">Cantidad de moldes</label>
+        <input id="moldes" class="campo" type="number" min="1" step="1" inputmode="numeric" required>
       </div>
-
       <div>
-        <label for="ot" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Orden de Trabajo (solo activas)</label>
-        <select id="ot" name="ot" class="campo" required>
-          <option value="">Cargando órdenes...</option>
-        </select>
-        <p id="ot-detalle" class="hidden mt-2 text-xs text-slate-500 font-medium bg-slate-50 border border-rvh-border rounded-lg px-3 py-2"></p>
+        <label class="lab" for="kg">Kg por molde</label>
+        <input id="kg" class="campo" type="number" min="0" step="0.01" inputmode="decimal" required>
       </div>
-
       <div>
-        <label for="cantidad" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Cantidad procesada</label>
-        <input id="cantidad" name="cantidad" type="number" min="1" step="1" inputmode="numeric" class="campo" placeholder="0" required>
+        <span class="lab">Total de kg</span>
+        <div class="calc" id="calcKg">—</div>
       </div>
+    </div>
 
-      <div>
-        <label for="observaciones" class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Observaciones <span class="normal-case font-medium text-slate-300">(opcional)</span></label>
-        <textarea id="observaciones" name="observaciones" rows="2" class="campo" placeholder="Rechazos, demoras, roturas..."></textarea>
+    <div style="margin-bottom:12px">
+      <label class="lab" for="pieza">Pieza / Observaciones</label>
+      <input id="pieza" class="campo" placeholder="Ej: Travesaño liviano" autocomplete="off">
+      <div id="sugerencias" class="sug"></div>
+      <input type="hidden" id="otSel">
+    </div>
+
+    <div id="bloquePiezas" class="hide" style="margin-bottom:12px">
+      <label class="lab" for="piezas">Piezas para esa OT</label>
+      <input id="piezas" class="campo" type="number" min="1" step="1" inputmode="numeric">
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px">
+        Se toma un molde = una pieza. Corregilo si de cada molde sale otra cantidad.
       </div>
+    </div>
 
-      <button id="submit-btn" type="submit"
-        class="w-full bg-rvh-navy text-white font-black text-base py-4 rounded-xl hover:bg-rvh-navyLight transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-        Guardar parte
-      </button>
-    </form>
+    <button class="btn" id="guardar" type="submit" style="width:100%;padding:14px;font-size:15px;font-weight:600">
+      Agregar a la planilla
+    </button>
+  </form>
 
-    <section id="sesion" class="hidden bg-white border border-rvh-border rounded-xl shadow-sm overflow-hidden">
-      <h2 class="px-4 py-2.5 bg-slate-50 border-b border-rvh-border text-[10px] font-bold uppercase tracking-wide text-slate-400">
-        Cargado en esta sesión
-      </h2>
-      <div id="sesion-lista" class="divide-y divide-rvh-border"></div>
-    </section>
-  </main>
+  <h2 class="sec">Cargado hoy</h2>
+  <div id="filas"></div>
+</div>
 
 <script src="shared.js"></script>
 <script>
 (function () {
   'use strict';
 
-  const { PROCESOS, hoyISO, cargarOrdenes, registrarCargaDiaria } = window.RVH;
+  const R = window.RVH;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const el = {
-    form: document.getElementById('form-carga'),
-    fecha: document.getElementById('fecha'),
-    equipo: document.getElementById('equipo'),
-    procesos: document.getElementById('procesos'),
-    proceso: document.getElementById('proceso'),
-    ot: document.getElementById('ot'),
-    otDetalle: document.getElementById('ot-detalle'),
-    cantidad: document.getElementById('cantidad'),
-    observaciones: document.getElementById('observaciones'),
-    submit: document.getElementById('submit-btn'),
-    feedback: document.getElementById('feedback'),
-    sesion: document.getElementById('sesion'),
-    sesionLista: document.getElementById('sesion-lista')
-  };
+  let sector = 'Moldeo';
+  let pedidos = [];
+  let delDia = [];   // lo cargado en esta sesión, por sector
 
-  let activas = [];
+  $('#fecha').value = R.hoyISO();
 
-  el.fecha.value = hoyISO();
-
-  // -------------------------------------------------------------------
-  // Proceso: botones grandes en lugar de un <select>, para cargar de pie.
-  // -------------------------------------------------------------------
-  PROCESOS.forEach(nombre => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'chip';
-    btn.textContent = nombre;
-    btn.setAttribute('aria-pressed', 'false');
-    btn.addEventListener('click', () => {
-      el.proceso.value = nombre;
-      Array.from(el.procesos.children).forEach(b =>
-        b.setAttribute('aria-pressed', String(b === btn)));
+  // ---------------- sectores ----------------
+  R.SECTORES.forEach(s => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = s;
+    b.setAttribute('aria-pressed', String(s === sector));
+    b.addEventListener('click', () => {
+      sector = s;
+      $('#secbar').querySelectorAll('button').forEach(x =>
+        x.setAttribute('aria-pressed', String(x.textContent === s)));
+      $('#totalSector').textContent = s;
+      pintar();
     });
-    el.procesos.appendChild(btn);
+    $('#secbar').appendChild(b);
   });
 
-  // -------------------------------------------------------------------
-  // OTs activas
-  // -------------------------------------------------------------------
-  function pintarDetalleOT() {
-    const orden = activas.find(o => o.otNumber === el.ot.value);
-    if (!orden) { el.otDetalle.classList.add('hidden'); return; }
-
-    el.otDetalle.textContent =
-      `${orden.cliente} · ${orden.cantidadCompletada}/${orden.cantidadTotal} pzs · faltan ${orden.faltantes}` +
-      (orden.fechaPrometida ? ` · entrega ${orden.fechaPrometida}` : '');
-    el.otDetalle.classList.remove('hidden');
-
-    // Sugerir lo que resta, para que el operario solo confirme.
-    if (!el.cantidad.value && orden.faltantes > 0) el.cantidad.max = orden.faltantes;
+  // ---------------- total en vivo ----------------
+  function recalcular() {
+    const m = Number($('#moldes').value), k = Number($('#kg').value);
+    $('#calcKg').textContent = (isFinite(m) && isFinite(k) && m > 0 && k >= 0)
+      ? (m * k).toLocaleString('es-PY') + ' kg' : '—';
   }
+  $('#moldes').addEventListener('input', recalcular);
+  $('#kg').addEventListener('input', recalcular);
 
-  // `silencioso` se usa al refrescar después de guardar: sin eso, el aviso
-  // de esta recarga pisa el "parte guardado" y el operario cree que falló.
-  async function cargarOTs({ silencioso } = {}) {
-    const resultado = await cargarOrdenes();
-    activas = resultado.ordenes.filter(o => o.activa);
+  // ---------------- sugerencia de OT desde la pieza ----------------
+  function pintarSugerencias() {
+    const texto = $('#pieza').value;
+    const cand = R.sugerirOT(texto, pedidos);
+    const sel = $('#otSel').value;
 
-    el.ot.innerHTML = '';
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = activas.length ? 'Seleccioná una OT...' : 'No hay órdenes activas';
-    el.ot.appendChild(placeholder);
-
-    activas.forEach(o => {
-      const opt = document.createElement('option');
-      opt.value = o.otNumber;
-      const marca = o.semaforo.color === 'rojo' ? '🔴 ' : (o.semaforo.color === 'amarillo' ? '🟡 ' : '');
-      opt.textContent = `${marca}${o.otNumber} — ${o.cliente} (faltan ${o.faltantes})`;
-      el.ot.appendChild(opt);
-    });
-
-    if (resultado.demo && !silencioso) {
-      mostrarFeedback('Sin conexión con la planilla: se están mostrando datos de demostración.', 'alerta');
+    if (!cand.length) {
+      $('#sugerencias').innerHTML = texto.trim().length >= 3
+        ? '<span style="font-size:11.5px;color:var(--ink-soft)">Sin OT parecida. Se guarda igual.</span>' : '';
+      if (!sel) $('#bloquePiezas').classList.add('hide');
+      return;
     }
+
+    $('#sugerencias').innerHTML =
+      '<span style="font-size:11.5px;color:var(--ink-soft);align-self:center">¿Es para…?</span>' +
+      cand.map(o => `<button type="button" data-ot="${esc(o.otNumber)}" aria-pressed="${o.otNumber === sel}">
+        ${esc(o.otNumber)} · ${esc(o.cliente)}</button>`).join('');
+
+    $('#sugerencias').querySelectorAll('button').forEach(b =>
+      b.addEventListener('click', () => {
+        const ot = b.dataset.ot;
+        const yaEstaba = $('#otSel').value === ot;
+        $('#otSel').value = yaEstaba ? '' : ot;      // volver a tocar la deselecciona
+        $('#bloquePiezas').classList.toggle('hide', yaEstaba);
+        if (!yaEstaba && !$('#piezas').value) $('#piezas').value = $('#moldes').value || '';
+        pintarSugerencias();
+      }));
+  }
+  $('#pieza').addEventListener('input', R.debounce(pintarSugerencias, 200));
+
+  // ---------------- planilla del día ----------------
+  function pintar() {
+    const filas = delDia.filter(f => f.sector === sector);
+    const total = filas.reduce((s, f) => s + f.total_kg, 0);
+    $('#totalKg').innerHTML = total.toLocaleString('es-PY') + ' <span>kg</span>';
+
+    $('#filas').innerHTML = filas.length ? `<div class="tablebox"><table class="filas"><thead><tr>
+        <th>Operario</th><th class="num">Moldes</th><th class="num">Kg/molde</th>
+        <th class="num">Total kg</th><th>Pieza</th><th>OT</th>
+      </tr></thead><tbody>${filas.map(f => `<tr style="cursor:default">
+        <td>${esc(f.operario)}</td>
+        <td class="num mono">${f.cantidad_moldes}</td>
+        <td class="num mono">${f.kg_por_molde}</td>
+        <td class="num mono"><b>${f.total_kg.toLocaleString('es-PY')}</b></td>
+        <td>${esc(f.pieza || '—')}</td>
+        <td class="mono">${f.id_ot ? esc(f.id_ot) : '—'}</td>
+      </tr>`).join('')}</tbody></table></div>`
+      : '<div class="empty">Todavía no cargaste nada en este sector hoy.</div>';
   }
 
-  el.ot.addEventListener('change', pintarDetalleOT);
-
-  // -------------------------------------------------------------------
-  // Feedback
-  // -------------------------------------------------------------------
-  function mostrarFeedback(mensaje, tipo) {
-    const estilos = {
-      ok: 'bg-emerald-50 border border-emerald-200 text-emerald-700',
-      error: 'bg-red-50 border border-red-200 text-red-700',
-      alerta: 'bg-amber-50 border border-amber-200 text-amber-700'
-    };
-    el.feedback.className = `rounded-xl px-4 py-3 text-sm font-bold toast ${estilos[tipo] || estilos.ok}`;
-    el.feedback.textContent = mensaje;
-    el.feedback.classList.remove('hidden');
+  function aviso(msg, tipo) {
+    const col = { ok: 'var(--verde)', err: 'var(--rojo)', warn: 'var(--ambar)' }[tipo] || 'var(--verde)';
+    $('#aviso').innerHTML = `<div style="border:1px solid ${col};color:${col};background:var(--surface);
+      padding:10px 14px;border-radius:2px;font-size:13.5px;font-weight:600;margin-bottom:14px">${esc(msg)}</div>`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function agregarASesion(registro, orden) {
-    el.sesion.classList.remove('hidden');
-    const fila = document.createElement('div');
-    fila.className = 'px-4 py-2.5 text-sm flex items-center justify-between gap-3';
-
-    const izq = document.createElement('div');
-    const t1 = document.createElement('p');
-    t1.className = 'font-bold text-slate-700';
-    t1.textContent = `${registro.id_ot} · ${registro.proceso}`;
-    const t2 = document.createElement('p');
-    t2.className = 'text-[11px] text-slate-400';
-    t2.textContent = `${orden ? orden.cliente + ' · ' : ''}${registro.fecha} · ${registro.equipo || 's/equipo'}`;
-    izq.append(t1, t2);
-
-    const der = document.createElement('span');
-    der.className = 'font-black text-emerald-600 shrink-0';
-    der.textContent = `+${registro.cantidad_procesada}`;
-
-    fila.append(izq, der);
-    el.sesionLista.prepend(fila);
-  }
-
-  // -------------------------------------------------------------------
-  // Guardar
-  // -------------------------------------------------------------------
-  el.form.addEventListener('submit', async e => {
+  // ---------------- guardar ----------------
+  $('#form').addEventListener('submit', async e => {
     e.preventDefault();
 
-    if (!el.proceso.value) {
-      mostrarFeedback('Elegí el proceso.', 'error');
-      return;
-    }
-    const cantidad = Number(el.cantidad.value);
-    if (!Number.isFinite(cantidad) || cantidad <= 0) {
-      mostrarFeedback('La cantidad procesada debe ser mayor a 0.', 'error');
-      return;
-    }
-
-    const orden = activas.find(o => o.otNumber === el.ot.value);
-
-    // Aviso, no bloqueo: puede haber reposiciones legítimas por sobre lo pedido.
-    if (orden && cantidad > orden.faltantes && orden.faltantes > 0) {
-      const seguir = window.confirm(
-        `Estás cargando ${cantidad} piezas pero a la ${orden.otNumber} solo le faltan ${orden.faltantes}. ¿Guardar igual?`
-      );
-      if (!seguir) return;
-    }
+    const moldes = Number($('#moldes').value);
+    const kg = Number($('#kg').value);
+    if (!(moldes > 0)) return aviso('La cantidad de moldes tiene que ser mayor a 0.', 'err');
+    if (!(kg >= 0)) return aviso('Poné los kg por molde.', 'err');
 
     const datos = {
-      fecha: el.fecha.value,
-      id_ot: el.ot.value,
-      proceso: el.proceso.value,
-      equipo: el.equipo.value.trim(),
-      cantidad_procesada: cantidad,
-      observaciones: el.observaciones.value.trim()
+      fecha: $('#fecha').value,
+      sector,
+      operario: $('#operario').value.trim(),
+      cantidad_moldes: moldes,
+      kg_por_molde: kg,
+      pieza: $('#pieza').value.trim(),
+      id_ot: $('#otSel').value,
+      piezas: $('#otSel').value ? (Number($('#piezas').value) || moldes) : ''
     };
 
-    el.submit.disabled = true;
-    el.submit.textContent = 'Guardando...';
+    $('#guardar').disabled = true;
+    $('#guardar').textContent = 'Guardando...';
 
     try {
-      const resp = await registrarCargaDiaria(datos);
-      mostrarFeedback(
-        `Parte guardado: ${resp.cantidad_procesada} pzs en ${datos.id_ot}. Avance ${resp.cantidad_completada}${orden ? '/' + orden.cantidadTotal : ''}.`,
-        'ok'
-      );
-      agregarASesion(Object.assign({}, datos, { id: resp.id }), orden);
+      const r = await R.registrarCargaDiaria(datos);
+      delDia.unshift(Object.assign({}, datos, { total_kg: r.total_kg }));
+      aviso(`Cargado: ${moldes} moldes · ${r.total_kg.toLocaleString('es-PY')} kg` +
+        (datos.id_ot ? ` · avance de ${datos.id_ot}` : ''), 'ok');
 
-      // Se limpia solo lo puntual del registro: fecha, equipo y proceso
-      // se reutilizan para cargar varias OTs seguidas del mismo turno.
-      el.cantidad.value = '';
-      el.observaciones.value = '';
-      el.ot.value = '';
-      el.otDetalle.classList.add('hidden');
-
-      await cargarOTs({ silencioso: true });
+      // El operario y el sector se mantienen: normalmente carga varias
+      // tandas seguidas del mismo turno.
+      ['moldes', 'kg', 'pieza', 'piezas'].forEach(id => { $('#' + id).value = ''; });
+      $('#otSel').value = '';
+      $('#bloquePiezas').classList.add('hide');
+      $('#sugerencias').innerHTML = '';
+      recalcular();
+      pintar();
+      $('#moldes').focus();
     } catch (err) {
-      mostrarFeedback(err.message || 'No se pudo guardar el parte.', 'error');
+      aviso(err.message || 'No se pudo guardar.', 'err');
     } finally {
-      el.submit.disabled = false;
-      el.submit.textContent = 'Guardar parte';
+      $('#guardar').disabled = false;
+      $('#guardar').textContent = 'Agregar a la planilla';
     }
   });
 
-  cargarOTs();
+  // ---------------- init ----------------
+  (async () => {
+    const res = await R.cargarOrdenes();
+    pedidos = res.ordenes;
+    if (res.demo) aviso('Sin conexión con la planilla: las sugerencias de OT son de demostración.', 'warn');
+    pintar();
+  })();
 })();
 </script>
 
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js').catch(err => console.error('SW:', err));
+      navigator.serviceWorker.register('service-worker.js').catch(e => console.error('SW:', e));
     });
   }
 </script>
