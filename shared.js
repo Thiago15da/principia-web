@@ -21,7 +21,7 @@ window.RVH = (function () {
     // Debe coincidir con VERSION en apps-script/Code.gs. Si la planilla
     // tiene publicada una versión anterior, los errores que devuelve no se
     // parecen a la causa real, así que se detecta y se dice explícitamente.
-    API_VERSION: 3,
+    API_VERSION: 4,
 
     REFRESH_MS: 60000,
 
@@ -857,6 +857,12 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     return json.filas || [];
   }
 
+  /** Registro histórico: tandas desde una fecha, más nuevas primero. */
+  async function leerRegistro(desde, sector) {
+    const json = await enviar({ accion: 'leer_registro', desde: desde || '', sector: sector || '' });
+    return json.filas || [];
+  }
+
   /** Estampa la fecha de una fase en la OT. Sin fecha, usa hoy. */
   async function marcarFase(otNumber, fase, fecha) {
     if (FASES_ESTAMPABLES.indexOf(fase) === -1) {
@@ -917,6 +923,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     concentracion,
     marcarFase,
     leerDia,
+    leerRegistro,
     DEMO_CSV,
     SEMAFORO_UI,
     normalize,
