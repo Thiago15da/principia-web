@@ -15,7 +15,7 @@
 // Se sube al cambiar el contrato con la web. La app lo compara y avisa si
 // la planilla quedó con una versión vieja publicada: sin esto, un script
 // desactualizado da errores que no se parecen en nada a la causa real.
-const VERSION = 4;
+const VERSION = 5;
 
 const CONFIG = {
   // gid de la pestaña de órdenes de trabajo — es el mismo número que ya
@@ -42,7 +42,7 @@ const CONFIG = {
 // sabe el número de OT, y no se le va a exigir.
 const COLUMNAS_REGISTRO = [
   'id', 'fecha', 'sector', 'operario', 'cantidad_moldes', 'kg_por_molde',
-  'total_kg', 'pieza', 'id_ot', 'piezas', 'observaciones'
+  'total_kg', 'pieza', 'id_ot', 'piezas', 'observaciones', 'creado_en'
 ];
 
 const SECTORES_VALIDOS = ['Carpintería', 'Moldeo', 'Fundición', 'Terminación'];
@@ -222,6 +222,18 @@ function fechaTexto(valor) {
 }
 
 /**
+ * Igual que fechaTexto pero con hora. Se escribe como texto, pero si
+ * alguien reformatea la columna Sheets la reinterpreta como fecha-hora y
+ * la devuelve como Date; sin esto el registro mostraría el toString de JS.
+ */
+function fechaHoraTexto(valor) {
+  if (valor instanceof Date) {
+    return Utilities.formatDate(valor, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  }
+  return String(valor || '').trim();
+}
+
+/**
  * Lee filas del parte diario aplicando un filtro. Compartido por la vista
  * del día y por el registro histórico, para que ambas devuelvan
  * exactamente la misma forma de dato.
@@ -254,7 +266,8 @@ function filasRegistro(filtro) {
       kg_por_molde: Number(celda(valores[i], 'kg_por_molde')) || 0,
       total_kg: Number(celda(valores[i], 'total_kg')) || 0,
       pieza: String(celda(valores[i], 'pieza') || ''),
-      observaciones: String(celda(valores[i], 'observaciones') || '')
+      observaciones: String(celda(valores[i], 'observaciones') || ''),
+      creado_en: fechaHoraTexto(celda(valores[i], 'creado_en'))
     });
   }
   return filas;
@@ -296,6 +309,36 @@ function leerRegistro(datos) {
   });
 
   return jsonResponse({ ok: true, desde: desde, filas: filas });
+}
+
+/**
+ * Borra tandas del parte diario por id. Se borra de abajo hacia arriba
+ * porque cada deleteRow corre las filas siguientes: hacerlo al revés
+ * terminaría borrando la fila equivocada.
+ */
+function borrarRegistro(datos) {
+  const ids = (datos.ids || []).map(function (x) { return Number(x); })
+    .filter(function (n) { return isFinite(n) && n > 0; });
+  if (!ids.length) return jsonResponse({ ok: false, error: 'No se indicó qué borrar.' });
+
+  const hoja = getHojaRegistro();
+  const valores = hoja.getDataRange().getValues();
+  if (valores.length < 2) return jsonResponse({ ok: false, error: 'El registro está vacío.' });
+
+  const colId = indiceColumna(valores[0], 'id');
+  if (colId === -1) return jsonResponse({ ok: false, error: 'No se encontró la columna "id".' });
+
+  const aBorrar = [];
+  for (var i = 1; i < valores.length; i++) {
+    if (ids.indexOf(Number(valores[i][colId])) !== -1) aBorrar.push(i + 1);
+  }
+  if (!aBorrar.length) return jsonResponse({ ok: false, error: 'No se encontraron esas tandas.' });
+
+  aBorrar.sort(function (a, b) { return b - a; });
+  aBorrar.forEach(function (fila) { hoja.deleteRow(fila); });
+  SpreadsheetApp.flush();
+
+  return jsonResponse({ ok: true, borradas: aBorrar.length });
 }
 
 /** Chequeo de salud: abrir la URL del Web App en el navegador debe responder ok. */
@@ -356,6 +399,7 @@ function doPost(e) {
     }
     if (accion === 'leer_dia') return leerDia(datos);
     if (accion === 'leer_registro') return leerRegistro(datos);
+    if (accion === 'borrar_registro') return borrarRegistro(datos);
     if (accion !== 'carga_diaria') {
       return jsonResponse({ ok: false, error: 'Acción desconocida: ' + accion });
     }
@@ -399,7 +443,10 @@ function doPost(e) {
       kg_por_molde: kgPorMolde,
       total_kg: totalKg,
       pieza: String(datos.pieza || '').trim(),
-      observaciones: String(datos.observaciones || '').trim()
+      observaciones: String(datos.observaciones || '').trim(),
+      // Cuándo se cargó, que no es lo mismo que cuándo se produjo: sirve
+      // para auditar una carga tardía o corregida.
+      creado_en: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')
     });
     SpreadsheetApp.flush();
 
