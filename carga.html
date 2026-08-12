@@ -49,6 +49,61 @@
   .granTotal{background:var(--steel-dk);color:#fff;border-radius:2px;padding:14px 18px;
     display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap}
   .granTotal .val{font-family:var(--cond);font-size:34px;font-weight:700;line-height:1}
+  .regbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:13px}
+  .regbar label{display:flex;gap:6px;align-items:center;color:var(--ink-soft);font-weight:600;cursor:pointer}
+  .dia{margin-bottom:16px;border:1px solid var(--rule);border-radius:2px;background:var(--surface)}
+  .diaCab{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;
+    padding:10px 14px;background:var(--sand);border-bottom:1px solid var(--rule)}
+  .diaCab .f{font-family:var(--cond);font-size:19px;font-weight:700;letter-spacing:.02em}
+  .diaCab .t{font-family:var(--mono);font-size:14px;font-weight:600}
+  .diaCab .d{font-size:11.5px;color:var(--ink-soft)}
+  .dia table{border:0}
+
+  /* --- panel de análisis del registro --- */
+  /* Borde propio por tarjeta y no la grilla con fondo: cuando la última
+     fila queda incompleta, el hueco no dibuja un bloque gris fantasma. */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px;margin-bottom:14px}
+  .kpi{background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:12px 14px}
+  .kpi .rot{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  .kpi .val{font-family:var(--cond);font-size:26px;font-weight:700;line-height:1.15;margin-top:2px}
+  .kpi .val u{text-decoration:none;font-size:12.5px;color:var(--ink-soft);font-family:var(--sans);font-weight:500}
+  .kpi .pie{font-size:11px;color:var(--ink-soft);margin-top:1px}
+
+  .panel{background:var(--surface);border:1px solid var(--rule);border-radius:2px;
+    padding:14px 16px 10px;margin-bottom:14px}
+  .panel h3{font-family:var(--cond);font-size:15px;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;margin:0 0 2px}
+  .panel .sub{font-size:11.5px;color:var(--ink-soft);margin-bottom:12px}
+  .chartbox{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .chart{display:block}
+  .chart .bar{fill:var(--steel);transition:fill .12s}
+  .chart .bar:hover{fill:var(--steel-dk)}
+  .chart .grid{stroke:var(--rule);stroke-width:1}
+  .chart .base{stroke:var(--ink-soft);stroke-width:1;opacity:.45}
+  .chart text{font-family:var(--mono);font-size:9.5px;fill:var(--ink-soft)}
+  .chart text.dato{font-weight:600;fill:var(--ink)}
+
+  .rank{display:grid;gap:7px}
+  .rankFila{display:grid;grid-template-columns:minmax(80px,1.1fr) 3fr auto;gap:9px;align-items:center;font-size:12.5px}
+  .rankFila .nom{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rankFila .via{background:var(--sand);border-radius:2px;height:11px;overflow:hidden}
+  .rankFila .via i{display:block;height:100%;background:var(--steel)}
+  .rankFila .n{font-family:var(--mono);font-size:12px;font-weight:600}
+
+  /* --- selección para borrar --- */
+  .selbar{position:sticky;bottom:0;z-index:15;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    background:var(--steel-dk);color:#fff;padding:11px 14px;border-radius:2px;margin-top:10px;font-size:13.5px}
+  .selbar[hidden]{display:none}
+  .selbar b{font-family:var(--mono)}
+  .selbar .btn{padding:8px 14px;font-size:13px}
+  .selbar .danger{background:var(--rojo);border-color:var(--rojo);color:#fff}
+  .selbar .danger:hover{background:#8E1E17;border-color:#8E1E17}
+  .selbar #selNada:hover{background:rgba(255,255,255,.14)}
+  td.sel,th.sel{width:1%;padding-right:0}
+  td.sel input,th.sel input{width:17px;height:17px;accent-color:var(--steel);cursor:pointer}
+  tr.marcada td{background:rgba(44,74,82,.09)}
+  .cuando{font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
+
   @media (max-width:640px){ .grid3{grid-template-columns:1fr} }
 </style>
 </head>
@@ -115,6 +170,28 @@
   <h2 class="sec">Producción del día</h2>
   <div id="resumen"></div>
   <div id="filas"></div>
+
+  <h2 class="sec">Registro por fechas</h2>
+  <div class="regbar">
+    <label><input type="checkbox" id="regTodos"> Todos los sectores</label>
+    <select id="regRango" class="campo" style="width:auto;padding:7px 10px;font-size:13px">
+      <option value="30">Últimos 30 días</option>
+      <option value="60" selected>Últimos 60 días</option>
+      <option value="180">Últimos 6 meses</option>
+      <option value="3650">Todo</option>
+    </select>
+    <button type="button" class="btn ghost" id="regExport" style="padding:7px 12px;font-size:12.5px">Exportar CSV</button>
+  </div>
+
+  <div id="analisis"></div>
+  <div id="registro"></div>
+
+  <div class="selbar" id="selbar" hidden>
+    <span><b id="selN">0</b> tanda(s) · <b id="selKg">0</b> kg</span>
+    <span style="flex:1"></span>
+    <button type="button" class="btn" id="selNada" style="background:transparent;border-color:rgba(255,255,255,.55);color:#fff">Deseleccionar</button>
+    <button type="button" class="btn danger" id="selBorrar">Borrar</button>
+  </div>
 </div>
 
 <script src="shared.js"></script>
@@ -144,6 +221,7 @@
         x.setAttribute('aria-pressed', String(x.textContent === s)));
       $('#totalSector').textContent = s;
       pintar();
+      if (!$('#regTodos').checked) traerRegistro();
     });
     $('#secbar').appendChild(b);
   });
@@ -210,6 +288,342 @@
     return d ? R.formatFecha(d) : iso;
   }
 
+  // ---------------- registro histórico ----------------
+  const DIAS_ES = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const MESES_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  let filasReg = [];              // lo último que devolvió la planilla
+  const seleccion = new Set();    // ids marcados para borrar
+
+  function nombreDia(iso) {
+    const d = R.parseFecha(iso);
+    return d ? DIAS_ES[d.getDay()] : '';
+  }
+
+  async function traerRegistro() {
+    const dias = Number($('#regRango').value) || 60;
+    const desde = new Date();
+    desde.setDate(desde.getDate() - dias);
+    const iso = desde.getFullYear() + '-' +
+      String(desde.getMonth() + 1).padStart(2, '0') + '-' +
+      String(desde.getDate()).padStart(2, '0');
+
+    $('#registro').innerHTML = '<div class="empty">Cargando registro...</div>';
+    try {
+      filasReg = await R.leerRegistro(iso, $('#regTodos').checked ? '' : sector);
+      // Los ids seleccionados que ya no están en pantalla no deben seguir
+      // contando: si no, el botón borrar mostraría un total fantasma.
+      const vivos = new Set(filasReg.map(f => f.id));
+      Array.from(seleccion).forEach(id => { if (!vivos.has(id)) seleccion.delete(id); });
+      pintarAnalisis(filasReg);
+      pintarRegistro(filasReg);
+      pintarSelbar();
+    } catch (err) {
+      filasReg = [];
+      $('#analisis').innerHTML = '';
+      $('#registro').innerHTML = '<div class="err">No se pudo leer el registro: ' + esc(err.message) + '</div>';
+    }
+  }
+
+  // ---------------- análisis del período ----------------
+
+  /** Agrupa el registro por fecha, de la más vieja a la más nueva. */
+  function porDia(filas) {
+    const mapa = new Map();
+    filas.forEach(f => {
+      let g = mapa.get(f.fecha);
+      if (!g) { g = { fecha: f.fecha, kg: 0, moldes: 0, tandas: 0 }; mapa.set(f.fecha, g); }
+      g.kg += f.total_kg; g.moldes += f.cantidad_moldes; g.tandas++;
+    });
+    return Array.from(mapa.values()).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
+  }
+
+  function ddmm(iso) {
+    const d = R.parseFecha(iso);
+    return d ? d.getDate() + ' ' + MESES_ES[d.getMonth()] : iso;
+  }
+
+  function pintarAnalisis(filas) {
+    if (!filas.length) { $('#analisis').innerHTML = ''; return; }
+
+    const dias = porDia(filas);
+    const totKg = filas.reduce((s, f) => s + f.total_kg, 0);
+    const totMoldes = filas.reduce((s, f) => s + f.cantidad_moldes, 0);
+    const mejor = dias.reduce((a, b) => b.kg > a.kg ? b : a, dias[0]);
+    const promDia = totKg / dias.length;
+    // Promedio ponderado real: no es el promedio de los kg/molde cargados,
+    // porque cada tanda pesa distinto según cuántos moldes tenga.
+    const kgMolde = totMoldes ? totKg / totMoldes : 0;
+
+    const ambito = $('#regTodos').checked ? 'toda la planta' : sector;
+    const num = (n, d) => n.toLocaleString('es-PY', { maximumFractionDigits: d == null ? 0 : d });
+
+    $('#analisis').innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><div class="rot">Total del período</div>
+          <div class="val">${num(totKg)} <u>kg</u></div>
+          <div class="pie">${esc(ambito)}</div></div>
+        <div class="kpi"><div class="rot">Promedio por día</div>
+          <div class="val">${num(promDia)} <u>kg</u></div>
+          <div class="pie">sobre ${dias.length} día${dias.length === 1 ? '' : 's'} trabajado${dias.length === 1 ? '' : 's'}</div></div>
+        <div class="kpi"><div class="rot">Mejor día</div>
+          <div class="val">${num(mejor.kg)} <u>kg</u></div>
+          <div class="pie">${esc(ddmm(mejor.fecha))}</div></div>
+        <div class="kpi"><div class="rot">Moldes</div>
+          <div class="val">${num(totMoldes)}</div>
+          <div class="pie">${filas.length} tanda${filas.length === 1 ? '' : 's'}</div></div>
+        <div class="kpi"><div class="rot">Kg por molde</div>
+          <div class="val">${num(kgMolde, 1)} <u>kg</u></div>
+          <div class="pie">promedio ponderado</div></div>
+      </div>
+
+      <div class="panel">
+        <h3>Producción diaria</h3>
+        <div class="sub">Kilos por día · ${esc(ambito)}${dias.length > 30 ? ' · últimos 30 días con carga' : ''}</div>
+        <div class="chartbox">${grafico(dias.slice(-30))}</div>
+      </div>
+
+      ${ranking(filas, 'operario', 'Producción por operario', 'Kilos acumulados en el período')}
+      ${$('#regTodos').checked ? ranking(filas, 'sector', 'Producción por sector', 'Kilos acumulados en el período') : ''}`;
+  }
+
+  /**
+   * Barras verticales de kilos por día, SVG a mano.
+   *
+   * Una sola serie, así que no lleva leyenda: el título ya dice qué se
+   * está midiendo. Se etiquetan solo el máximo y el último día; poner el
+   * número sobre cada barra vuelve ilegible un mes de producción.
+   */
+  function grafico(dias) {
+    // padR deja lugar para que la fecha del último día, centrada bajo su
+    // barra, no quede cortada contra el borde del gráfico.
+    const padL = 46, padR = 24, padT = 18, padB = 30;
+    const hueco = 2;
+    const alto = 190;
+
+    // Las barras se ensanchan hasta llenar el panel cuando hay pocos días,
+    // y se achican hasta un mínimo legible cuando hay muchos; pasado ese
+    // mínimo el gráfico se desborda y el contenedor lo hace desplazable.
+    const dispon = Math.max(300, ($('#analisis').clientWidth || 700) - 36);
+    const anchoBarra = Math.max(8, Math.min(46,
+      Math.floor((dispon - padL - padR) / Math.max(dias.length, 1))));
+    const ancho = Math.max(300, padL + padR + dias.length * anchoBarra);
+    const h = alto - padT - padB;
+
+    const max = Math.max.apply(null, dias.map(d => d.kg)) || 1;
+    // Techo redondeado hacia arriba, para que la grilla caiga en números
+    // que se puedan leer de un vistazo.
+    const paso = Math.pow(10, Math.floor(Math.log10(max))) / 2;
+    const techo = Math.ceil(max / paso) * paso || 1;
+    const y = v => padT + h - (v / techo) * h;
+
+    const lineas = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const v = techo * p, yy = y(v);
+      return `<line class="${p ? 'grid' : 'base'}" x1="${padL}" y1="${yy}" x2="${ancho - padR}" y2="${yy}"/>
+        <text x="${padL - 6}" y="${yy + 3}" text-anchor="end">${Math.round(v).toLocaleString('es-PY')}</text>`;
+    }).join('');
+
+    // Con muchas barras las fechas se pisan. Cuántas entran depende del
+    // ancho real, no de la cantidad de días: en el celular las barras son
+    // finas y "29 jun" ocupa el lugar de tres.
+    const caben = Math.max(2, Math.floor((ancho - padL - padR) / 46));
+    const cadaN = Math.ceil(dias.length / caben);
+    const iMax = dias.reduce((a, d, i) => dias[a].kg >= d.kg ? a : i, 0);
+
+    const barras = dias.map((d, i) => {
+      const x = padL + i * anchoBarra;
+      const w = anchoBarra - hueco;
+      const yy = y(d.kg), alt = Math.max(padT + h - yy, 1);
+      const r = Math.min(4, w / 2, alt);
+      const path = `M${x},${yy + alt} L${x},${yy + r} Q${x},${yy} ${x + r},${yy} ` +
+        `L${x + w - r},${yy} Q${x + w},${yy} ${x + w},${yy + r} L${x + w},${yy + alt} Z`;
+      // Solo el máximo y el último día llevan número, y el último se calla
+      // si está pegado al máximo: dos etiquetas juntas se pisan.
+      const etiqueta = i === iMax || (i === dias.length - 1 && iMax < i - 1)
+        ? `<text class="dato" x="${x + w / 2}" y="${yy - 5}" text-anchor="middle">${Math.round(d.kg).toLocaleString('es-PY')}</text>`
+        : '';
+      const ultimo = i === dias.length - 1;
+      const fecha = ultimo || (i % cadaN === 0 && dias.length - 1 - i >= Math.max(2, cadaN))
+        ? `<text x="${x + w / 2}" y="${padT + h + 13}" text-anchor="middle">${esc(ddmm(d.fecha))}</text>` : '';
+      return `<g><path class="bar" d="${path}"><title>${esc(ddmm(d.fecha))} · ${
+        Math.round(d.kg).toLocaleString('es-PY')} kg · ${d.moldes} moldes en ${d.tandas} tanda${
+        d.tandas === 1 ? '' : 's'}</title></path>${etiqueta}${fecha}</g>`;
+    }).join('');
+
+    return `<svg class="chart" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}"
+      role="img" aria-label="Kilos producidos por día">${lineas}${barras}</svg>`;
+  }
+
+  /** Barras horizontales acumuladas por operario o por sector. */
+  function ranking(filas, campo, titulo, sub) {
+    const mapa = new Map();
+    filas.forEach(f => {
+      const k = (f[campo] || '').trim() || '(sin indicar)';
+      const g = mapa.get(k) || { kg: 0, moldes: 0 };
+      g.kg += f.total_kg; g.moldes += f.cantidad_moldes;
+      mapa.set(k, g);
+    });
+    const lista = Array.from(mapa.entries()).map(([nom, g]) => ({ nom, ...g }))
+      .sort((a, b) => b.kg - a.kg).slice(0, 8);
+    if (lista.length < 2) return '';
+
+    const max = lista[0].kg || 1;
+    return `<div class="panel">
+      <h3>${esc(titulo)}</h3><div class="sub">${esc(sub)}</div>
+      <div class="rank">${lista.map(x => `<div class="rankFila">
+        <span class="nom" title="${esc(x.nom)}">${esc(x.nom)}</span>
+        <span class="via"><i style="width:${(x.kg / max * 100).toFixed(1)}%"></i></span>
+        <span class="n">${Math.round(x.kg).toLocaleString('es-PY')} kg</span>
+      </div>`).join('')}</div>
+    </div>`;
+  }
+
+  function pintarRegistro(filas) {
+    if (!filas.length) {
+      $('#registro').innerHTML = '<div class="empty">Todavía no hay nada cargado en este período.</div>';
+      return;
+    }
+
+    // Ya vienen ordenadas de más nueva a más vieja; se agrupan conservando
+    // ese orden, así el último día cargado queda arriba de todo.
+    const porFecha = [];
+    filas.forEach(f => {
+      var g = porFecha.length ? porFecha[porFecha.length - 1] : null;
+      if (!g || g.fecha !== f.fecha) { g = { fecha: f.fecha, filas: [] }; porFecha.push(g); }
+      g.filas.push(f);
+    });
+
+    const todos = $('#regTodos').checked;
+
+    $('#registro').innerHTML = porFecha.map(g => {
+      const totKg = g.filas.reduce((s, f) => s + f.total_kg, 0);
+      const totMoldes = g.filas.reduce((s, f) => s + f.cantidad_moldes, 0);
+      const todasMarcadas = g.filas.every(f => seleccion.has(f.id));
+      return `<div class="dia">
+        <div class="diaCab">
+          <div>
+            <span class="f">${esc(fechaLinda(g.fecha))}</span>
+            <span class="d"> · ${esc(nombreDia(g.fecha))} · ${totMoldes} moldes en ${g.filas.length} tanda${g.filas.length === 1 ? '' : 's'}</span>
+          </div>
+          <div class="t">${kg(totKg)} kg</div>
+        </div>
+        <div class="tablebox"><table class="filas"><thead><tr>
+          <th class="sel"><input type="checkbox" data-dia="${esc(g.fecha)}" title="Seleccionar el día entero"${todasMarcadas ? ' checked' : ''}></th>
+          ${todos ? '<th>Sector</th>' : ''}
+          <th>Operario</th><th class="num">Moldes</th><th class="num">Kg/molde</th>
+          <th class="num">Total kg</th><th>Pieza / Observaciones</th><th>Cargado</th>
+        </tr></thead><tbody>${g.filas.map(f => `<tr style="cursor:default"${seleccion.has(f.id) ? ' class="marcada"' : ''}>
+          <td class="sel"><input type="checkbox" data-id="${f.id}"${seleccion.has(f.id) ? ' checked' : ''}></td>
+          ${todos ? '<td>' + esc(f.sector) + '</td>' : ''}
+          <td>${esc(f.operario)}</td>
+          <td class="num mono">${f.cantidad_moldes}</td>
+          <td class="num mono">${f.kg_por_molde}</td>
+          <td class="num mono"><b>${kg(f.total_kg)}</b></td>
+          <td>${esc(f.pieza || f.observaciones || '—')}</td>
+          <td class="cuando">${esc(cuando(f.creado_en, f.fecha))}</td>
+        </tr>`).join('')}</tbody></table></div>
+      </div>`;
+    }).join('');
+  }
+
+  /**
+   * Cuándo se cargó la tanda, que no siempre es el día que se produjo.
+   * Si se cargó el mismo día alcanza con la hora; si se cargó después hay
+   * que decirlo, porque es justo el caso que suele estar mal escrito.
+   */
+  function cuando(creado, fecha) {
+    if (!creado) return '—';
+    const partes = String(creado).split(' ');
+    const dia = partes[0], hora = (partes[1] || '').slice(0, 5);
+    if (dia === fecha) return hora || '—';
+    return ddmm(dia) + (hora ? ' ' + hora : '');
+  }
+
+  // ---------------- selección y borrado ----------------
+
+  function pintarSelbar() {
+    const marcadas = filasReg.filter(f => seleccion.has(f.id));
+    $('#selbar').hidden = !marcadas.length;
+    $('#selN').textContent = marcadas.length;
+    $('#selKg').textContent = kg(marcadas.reduce((s, f) => s + f.total_kg, 0));
+  }
+
+  // Delegado: el registro se vuelve a dibujar entero en cada refresco, así
+  // que enganchar cada checkbox por separado se perdería en el camino.
+  $('#registro').addEventListener('change', e => {
+    const el = e.target;
+    if (el.tagName !== 'INPUT') return;
+
+    if (el.dataset.dia) {
+      filasReg.filter(f => f.fecha === el.dataset.dia)
+        .forEach(f => el.checked ? seleccion.add(f.id) : seleccion.delete(f.id));
+      pintarRegistro(filasReg);
+    } else if (el.dataset.id) {
+      const id = Number(el.dataset.id);
+      el.checked ? seleccion.add(id) : seleccion.delete(id);
+      const tr = el.closest('tr');
+      if (tr) tr.classList.toggle('marcada', el.checked);
+      // El checkbox del día deja de valer si la fila desmarcada era suya.
+      const cab = el.closest('table').querySelector('thead input[data-dia]');
+      if (cab) cab.checked = filasReg.filter(f => f.fecha === cab.dataset.dia)
+        .every(f => seleccion.has(f.id));
+    }
+    pintarSelbar();
+  });
+
+  $('#selNada').addEventListener('click', () => {
+    seleccion.clear();
+    pintarRegistro(filasReg);
+    pintarSelbar();
+  });
+
+  $('#selBorrar').addEventListener('click', async () => {
+    const ids = filasReg.filter(f => seleccion.has(f.id)).map(f => f.id);
+    if (!ids.length) return;
+    const total = filasReg.filter(f => seleccion.has(f.id)).reduce((s, f) => s + f.total_kg, 0);
+    if (!confirm('Se van a borrar ' + ids.length + ' tanda(s) por ' + kg(total) +
+      ' kg. Esto no se puede deshacer. ¿Confirmás?')) return;
+
+    $('#selBorrar').disabled = true;
+    $('#selBorrar').textContent = 'Borrando...';
+    try {
+      const n = await R.borrarRegistro(ids);
+      seleccion.clear();
+      aviso('Se borraron ' + n + ' tanda' + (n === 1 ? '' : 's') + ' del registro.', 'ok');
+      await traerDia();
+      await traerRegistro();
+    } catch (err) {
+      aviso(err.message || 'No se pudo borrar.', 'err');
+    } finally {
+      $('#selBorrar').disabled = false;
+      $('#selBorrar').textContent = 'Borrar';
+    }
+  });
+
+  // ---------------- exportar ----------------
+  $('#regExport').addEventListener('click', () => {
+    if (!filasReg.length) return aviso('No hay nada para exportar en este período.', 'warn');
+    const cab = ['Fecha', 'Sector', 'Operario', 'Moldes', 'Kg por molde', 'Total kg', 'Pieza / Observaciones', 'Cargado'];
+    const campo = v => {
+      const s = String(v == null ? '' : v);
+      return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    // Separador punto y coma: es lo que espera el Excel en español, que es
+    // con lo que se abre esto en la oficina.
+    const filas = filasReg.map(f => [f.fecha, f.sector, f.operario, f.cantidad_moldes,
+      f.kg_por_molde, f.total_kg, f.pieza || f.observaciones || '', f.creado_en]);
+    const csv = '﻿' + [cab].concat(filas).map(r => r.map(campo).join(';')).join('\r\n');
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'rvh-registro-' + R.hoyISO() + '.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  $('#regTodos').addEventListener('change', traerRegistro);
+  $('#regRango').addEventListener('change', traerRegistro);
+
   /** Trae de la planilla todo lo cargado en la fecha elegida. */
   async function traerDia() {
     try {
@@ -259,6 +673,7 @@
       recalcular();
       $('#moldes').focus();
       await traerDia();
+      await traerRegistro();
     } catch (err) {
       aviso(err.message || 'No se pudo guardar.', 'err');
     } finally {
@@ -271,6 +686,7 @@
   $('#fecha').addEventListener('change', traerDia);
 
   traerDia();
+  traerRegistro();
 })();
 </script>
 
