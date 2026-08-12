@@ -220,8 +220,8 @@
       $('#secbar').querySelectorAll('button').forEach(x =>
         x.setAttribute('aria-pressed', String(x.textContent === s)));
       $('#totalSector').textContent = s;
-      pintar();
-      if (!$('#regTodos').checked) traerRegistro();
+      // Sin ir a la planilla: los cuatro sectores ya están en memoria.
+      refrescar();
     });
     $('#secbar').appendChild(b);
   });
@@ -292,37 +292,96 @@
   const DIAS_ES = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   const MESES_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-  let filasReg = [];              // lo último que devolvió la planilla
+  // Todo lo que muestra la pantalla sale de acá: una sola lectura, con los
+  // cuatro sectores, y de ahí se filtra en el navegador. Antes cada botón de
+  // sector y cada apertura pedían de nuevo a la planilla, y cada pedido hacía
+  // fila detrás de los anteriores.
+  let filasReg = [];              // registro completo del rango, todos los sectores
+  let desdeReg = '';              // desde qué fecha está cargado filasReg
+  let pedido = 0;                 // para descartar respuestas que llegan tarde
   const seleccion = new Set();    // ids marcados para borrar
+
+  /** Lo que corresponde mostrar según el filtro de sector. */
+  function filasVisibles() {
+    return $('#regTodos').checked ? filasReg : filasReg.filter(f => f.sector === sector);
+  }
+
+  /** Repinta todo desde filasReg. No toca la red. */
+  function refrescar() {
+    const visibles = filasVisibles();
+
+    // Lo seleccionado que dejó de verse se deselecciona: no se puede borrar
+    // a ciegas algo que quedó fuera del filtro.
+    const aLaVista = new Set(visibles.map(f => f.id));
+    Array.from(seleccion).forEach(id => { if (!aLaVista.has(id)) seleccion.delete(id); });
+
+    pintarAnalisis(visibles);
+    pintarRegistro(visibles);
+    pintarSelbar();
+    sincronizarDia();
+  }
 
   function nombreDia(iso) {
     const d = R.parseFecha(iso);
     return d ? DIAS_ES[d.getDay()] : '';
   }
 
+  function isoHaceDias(dias) {
+    const d = new Date();
+    d.setDate(d.getDate() - dias);
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+
   async function traerRegistro() {
-    const dias = Number($('#regRango').value) || 60;
-    const desde = new Date();
-    desde.setDate(desde.getDate() - dias);
-    const iso = desde.getFullYear() + '-' +
-      String(desde.getMonth() + 1).padStart(2, '0') + '-' +
-      String(desde.getDate()).padStart(2, '0');
+    const desde = isoHaceDias(Number($('#regRango').value) || 60);
+
+    // Si el operario toca dos veces el rango, la respuesta del primer pedido
+    // puede llegar después de la del segundo. Este número dice cuál es el
+    // pedido vigente; lo que llega tarde se descarta.
+    const mio = ++pedido;
 
     $('#registro').innerHTML = '<div class="empty">Cargando registro...</div>';
+
+    // Google a veces tarda diez segundos en despertar. Si no se dice nada, la
+    // pantalla parece trabada y alguien recarga a la mitad del pedido.
+    const lento = setTimeout(() => {
+      if (mio === pedido) {
+        $('#registro').innerHTML = '<div class="empty">Cargando registro...' +
+          '<div style="font-size:12px;margin-top:6px">La planilla está tardando más de lo normal. ' +
+          'Esperá unos segundos más.</div></div>';
+      }
+    }, 6000);
+
     try {
-      filasReg = await R.leerRegistro(iso, $('#regTodos').checked ? '' : sector);
-      // Los ids seleccionados que ya no están en pantalla no deben seguir
-      // contando: si no, el botón borrar mostraría un total fantasma.
-      const vivos = new Set(filasReg.map(f => f.id));
-      Array.from(seleccion).forEach(id => { if (!vivos.has(id)) seleccion.delete(id); });
-      pintarAnalisis(filasReg);
-      pintarRegistro(filasReg);
-      pintarSelbar();
+      // Siempre los cuatro sectores: filtrar del lado de la planilla no
+      // ahorra nada y obliga a volver a preguntar al cambiar de sector.
+      const filas = await R.leerRegistro(desde, '');
+      if (mio !== pedido) return;
+      filasReg = filas;
+      desdeReg = desde;
+      refrescar();
     } catch (err) {
+      if (mio !== pedido) return;
       filasReg = [];
-      $('#analisis').innerHTML = '';
-      $('#registro').innerHTML = '<div class="err">No se pudo leer el registro: ' + esc(err.message) + '</div>';
+      desdeReg = '';
+      mostrarFalla(err);
+    } finally {
+      clearTimeout(lento);
     }
+  }
+
+  /**
+   * Una lectura que falla tiene que terminar en algo que se pueda apretar.
+   * Dejar el "Cargando..." puesto era lo que obligaba a recargar la página.
+   */
+  function mostrarFalla(err) {
+    $('#analisis').innerHTML = '';
+    $('#registro').innerHTML = '<div class="err">No se pudo leer el registro: ' +
+      esc(err.message) + ' <button type="button" id="regReintentar">Reintentar</button></div>';
+    $('#regReintentar').addEventListener('click', traerRegistro);
+    pintarSelbar();
   }
 
   // ---------------- análisis del período ----------------
@@ -541,11 +600,16 @@
 
   // ---------------- selección y borrado ----------------
 
+  /** Las marcadas, siempre entre las que están a la vista. */
+  function marcadas() {
+    return filasVisibles().filter(f => seleccion.has(f.id));
+  }
+
   function pintarSelbar() {
-    const marcadas = filasReg.filter(f => seleccion.has(f.id));
-    $('#selbar').hidden = !marcadas.length;
-    $('#selN').textContent = marcadas.length;
-    $('#selKg').textContent = kg(marcadas.reduce((s, f) => s + f.total_kg, 0));
+    const sel = marcadas();
+    $('#selbar').hidden = !sel.length;
+    $('#selN').textContent = sel.length;
+    $('#selKg').textContent = kg(sel.reduce((s, f) => s + f.total_kg, 0));
   }
 
   // Delegado: el registro se vuelve a dibujar entero en cada refresco, así
@@ -554,10 +618,12 @@
     const el = e.target;
     if (el.tagName !== 'INPUT') return;
 
+    const visibles = filasVisibles();
+
     if (el.dataset.dia) {
-      filasReg.filter(f => f.fecha === el.dataset.dia)
+      visibles.filter(f => f.fecha === el.dataset.dia)
         .forEach(f => el.checked ? seleccion.add(f.id) : seleccion.delete(f.id));
-      pintarRegistro(filasReg);
+      pintarRegistro(visibles);
     } else if (el.dataset.id) {
       const id = Number(el.dataset.id);
       el.checked ? seleccion.add(id) : seleccion.delete(id);
@@ -565,7 +631,7 @@
       if (tr) tr.classList.toggle('marcada', el.checked);
       // El checkbox del día deja de valer si la fila desmarcada era suya.
       const cab = el.closest('table').querySelector('thead input[data-dia]');
-      if (cab) cab.checked = filasReg.filter(f => f.fecha === cab.dataset.dia)
+      if (cab) cab.checked = visibles.filter(f => f.fecha === cab.dataset.dia)
         .every(f => seleccion.has(f.id));
     }
     pintarSelbar();
@@ -573,14 +639,15 @@
 
   $('#selNada').addEventListener('click', () => {
     seleccion.clear();
-    pintarRegistro(filasReg);
+    pintarRegistro(filasVisibles());
     pintarSelbar();
   });
 
   $('#selBorrar').addEventListener('click', async () => {
-    const ids = filasReg.filter(f => seleccion.has(f.id)).map(f => f.id);
+    const sel = marcadas();
+    const ids = sel.map(f => f.id);
     if (!ids.length) return;
-    const total = filasReg.filter(f => seleccion.has(f.id)).reduce((s, f) => s + f.total_kg, 0);
+    const total = sel.reduce((s, f) => s + f.total_kg, 0);
     if (!confirm('Se van a borrar ' + ids.length + ' tanda(s) por ' + kg(total) +
       ' kg. Esto no se puede deshacer. ¿Confirmás?')) return;
 
@@ -590,7 +657,6 @@
       const n = await R.borrarRegistro(ids);
       seleccion.clear();
       aviso('Se borraron ' + n + ' tanda' + (n === 1 ? '' : 's') + ' del registro.', 'ok');
-      await traerDia();
       await traerRegistro();
     } catch (err) {
       aviso(err.message || 'No se pudo borrar.', 'err');
@@ -602,7 +668,10 @@
 
   // ---------------- exportar ----------------
   $('#regExport').addEventListener('click', () => {
-    if (!filasReg.length) return aviso('No hay nada para exportar en este período.', 'warn');
+    // Se exporta lo que está a la vista, filtro de sector incluido: si en
+    // pantalla dice Moldeo, el archivo no debería traer los otros tres.
+    const aExportar = filasVisibles();
+    if (!aExportar.length) return aviso('No hay nada para exportar en este período.', 'warn');
     const cab = ['Fecha', 'Sector', 'Operario', 'Moldes', 'Kg por molde', 'Total kg', 'Pieza / Observaciones', 'Cargado'];
     const campo = v => {
       const s = String(v == null ? '' : v);
@@ -610,7 +679,7 @@
     };
     // Separador punto y coma: es lo que espera el Excel en español, que es
     // con lo que se abre esto en la oficina.
-    const filas = filasReg.map(f => [f.fecha, f.sector, f.operario, f.cantidad_moldes,
+    const filas = aExportar.map(f => [f.fecha, f.sector, f.operario, f.cantidad_moldes,
       f.kg_por_molde, f.total_kg, f.pieza || f.observaciones || '', f.creado_en]);
     const csv = '﻿' + [cab].concat(filas).map(r => r.map(campo).join(';')).join('\r\n');
 
@@ -621,15 +690,32 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
 
-  $('#regTodos').addEventListener('change', traerRegistro);
+  // Ninguno de los dos vuelve a la planilla: el de sectores filtra lo que ya
+  // está en memoria, y el de rango sí necesita traer más días.
+  $('#regTodos').addEventListener('change', refrescar);
   $('#regRango').addEventListener('change', traerRegistro);
 
-  /** Trae de la planilla todo lo cargado en la fecha elegida. */
-  async function traerDia() {
+  /**
+   * Pone en pantalla la producción de la fecha elegida.
+   *
+   * Normalmente sale de filasReg sin pedir nada: el registro ya trae desde
+   * `desdeReg` hasta hoy. Solo si se elige una fecha anterior a ese rango hay
+   * que preguntar por ese día puntual.
+   */
+  async function sincronizarDia() {
+    const fecha = $('#fecha').value;
+
+    if (desdeReg && fecha >= desdeReg) {
+      delDia = filasReg.filter(f => f.fecha === fecha);
+      pintar();
+      return;
+    }
+
     try {
-      delDia = await R.leerDia($('#fecha').value);
+      delDia = await R.leerDia(fecha);
     } catch (err) {
       // Si no se puede leer, al menos no perdemos lo de esta sesión.
+      delDia = [];
       aviso('No se pudo leer la producción del día: ' + err.message, 'warn');
     }
     pintar();
@@ -672,7 +758,7 @@
       ['moldes', 'kg', 'pieza'].forEach(id => { $('#' + id).value = ''; });
       recalcular();
       $('#moldes').focus();
-      await traerDia();
+      // Una sola relectura: de ella salen tanto el día como el registro.
       await traerRegistro();
     } catch (err) {
       aviso(err.message || 'No se pudo guardar.', 'err');
@@ -683,9 +769,9 @@
   });
 
   // ---------------- init ----------------
-  $('#fecha').addEventListener('change', traerDia);
+  $('#fecha').addEventListener('change', sincronizarDia);
 
-  traerDia();
+  // Un solo viaje a la planilla para toda la pantalla.
   traerRegistro();
 })();
 </script>
