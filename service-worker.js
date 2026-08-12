@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'rvh-pcp-static-v6';
+const CACHE_NAME = 'rvh-pcp-static-v7';
 const STATIC_ASSETS = [
   './',
   './index.html',

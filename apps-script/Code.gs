@@ -15,7 +15,7 @@
 // Se sube al cambiar el contrato con la web. La app lo compara y avisa si
 // la planilla quedó con una versión vieja publicada: sin esto, un script
 // desactualizado da errores que no se parecen en nada a la causa real.
-const VERSION = 5;
+const VERSION = 6;
 
 const CONFIG = {
   // gid de la pestaña de órdenes de trabajo — es el mismo número que ya
@@ -240,8 +240,13 @@ function fechaHoraTexto(valor) {
  */
 function filasRegistro(filtro) {
   const hoja = getHojaRegistro();
-  const valores = hoja.getDataRange().getValues();
-  if (valores.length < 2) return [];
+  const ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2) return [];
+
+  // Solo las columnas del parte. getDataRange() arrastra además todo lo que
+  // alguien haya dejado a la derecha en la hoja, y eso viaja en cada lectura.
+  const anchoUtil = Math.min(hoja.getLastColumn(), COLUMNAS_REGISTRO.length);
+  const valores = hoja.getRange(1, 1, ultimaFila, anchoUtil).getValues();
 
   const encabezados = valores[0];
   const idx = {};
@@ -364,41 +369,50 @@ function doGet() {
  * sabe. Si viene, se suma `piezas` al avance de esa OT.
  */
 function doPost(e) {
+  if (!e || !e.postData || !e.postData.contents) {
+    return jsonResponse({ ok: false, error: 'Petición vacía.' });
+  }
+
+  var datos;
+  try {
+    datos = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return jsonResponse({ ok: false, error: 'Formato de datos inválido.' });
+  }
+
+  if (String(datos.token || '') !== CONFIG.TOKEN) {
+    return jsonResponse({ ok: false, error: 'Token inválido.' });
+  }
+
+  const accion = String(datos.accion || 'carga_diaria').trim();
+
+  // Las lecturas salen por acá, antes del candado, y no compiten con nada.
+  // El candado es uno solo para todo el script: candar también las lecturas
+  // hacía que cada pantalla abierta esperara su turno detrás de las demás, y
+  // con dos personas mirando la planilla eso se sentía como "no responde".
+  if (accion === 'leer_dia') return leerDia(datos);
+  if (accion === 'leer_registro') return leerRegistro(datos);
+
   const lock = LockService.getScriptLock();
 
-  // Sin lock, dos cargas simultáneas pueden leer el mismo valor de
+  // Sin candado, dos cargas simultáneas pueden leer el mismo valor de
   // "Cantidad Completada" y una pisar a la otra, perdiendo producción.
+  //
+  // Diez segundos y no más: el navegador corta a los 25, así que una
+  // escritura que esperó media hoja de cola ya llega tarde igual. Es
+  // preferible avisar rápido que dejar a alguien mirando el reloj.
   try {
-    lock.waitLock(30000);
+    lock.waitLock(10000);
   } catch (err) {
     return jsonResponse({ ok: false, error: 'El sistema está ocupado, reintentá en unos segundos.' });
   }
 
   try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return jsonResponse({ ok: false, error: 'Petición vacía.' });
-    }
-
-    var datos;
-    try {
-      datos = JSON.parse(e.postData.contents);
-    } catch (err) {
-      return jsonResponse({ ok: false, error: 'Formato de datos inválido.' });
-    }
-
-    if (String(datos.token || '') !== CONFIG.TOKEN) {
-      return jsonResponse({ ok: false, error: 'Token inválido.' });
-    }
-
-    const accion = String(datos.accion || 'carga_diaria').trim();
-
     if (accion === 'marcar_fase') {
       const otFase = String(datos.id_ot || '').trim();
       if (!otFase) return jsonResponse({ ok: false, error: 'Falta la OT.' });
       return marcarFase(datos, otFase);
     }
-    if (accion === 'leer_dia') return leerDia(datos);
-    if (accion === 'leer_registro') return leerRegistro(datos);
     if (accion === 'borrar_registro') return borrarRegistro(datos);
     if (accion !== 'carga_diaria') {
       return jsonResponse({ ok: false, error: 'Acción desconocida: ' + accion });

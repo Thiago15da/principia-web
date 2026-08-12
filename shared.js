@@ -21,7 +21,7 @@ window.RVH = (function () {
     // Debe coincidir con VERSION en apps-script/Code.gs. Si la planilla
     // tiene publicada una versión anterior, los errores que devuelve no se
     // parecen a la causa real, así que se detecta y se dice explícitamente.
-    API_VERSION: 5,
+    API_VERSION: 6,
 
     REFRESH_MS: 60000,
 
@@ -743,8 +743,49 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
   // ---------------------------------------------------------------------
   // Acceso a datos
   // ---------------------------------------------------------------------
+  // Cuánto se espera antes de darse por vencido. Sin esto un pedido que se
+  // cuelga deja la pantalla en "Cargando" para siempre y la única salida es
+  // recargar a mano, que es justo lo que pasaba en el taller.
+  const TIMEOUT_LECTURA_MS = 20000;
+  const TIMEOUT_ESCRITURA_MS = 25000;
+
+  const esperar = ms => new Promise(r => setTimeout(r, ms));
+
+  /**
+   * fetch que se rinde solo. Traduce el corte a un mensaje que se entienda:
+   * "AbortError" no le dice nada a nadie en la planta.
+   */
+  async function fetchConTimeout(url, opciones, ms, quien) {
+    const ctrl = new AbortController();
+    const reloj = setTimeout(() => ctrl.abort(), ms);
+    try {
+      return await fetch(url, Object.assign({ signal: ctrl.signal }, opciones));
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        const agotado = new Error(quien + ' no respondió en ' + Math.round(ms / 1000) +
+          ' segundos. Puede ser la señal: probá de nuevo.');
+        // Que se haya agotado el tiempo significa que del otro lado hay
+        // alguien, pero lento. Reintentar solo duplica la espera y le suma
+        // trabajo a un servidor que ya viene ahogado: mejor avisar ahora.
+        agotado.definitivo = true;
+        throw agotado;
+      }
+      // Sin conexión, fetch tira un TypeError pelado ("Failed to fetch" /
+      // "Load failed" según el navegador). En el taller eso no le dice nada
+      // a nadie: lo que hace falta saber es que hay que mirar la señal.
+      if (err instanceof TypeError) {
+        throw new Error('No se pudo conectar con ' + quien.toLowerCase() +
+          '. Revisá la conexión y probá de nuevo.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(reloj);
+    }
+  }
+
   async function fetchCSVText(url) {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetchConTimeout(url, { cache: 'no-store' },
+      TIMEOUT_LECTURA_MS, 'La planilla');
     if (!res.ok) throw new Error(`No se pudo obtener la planilla (HTTP ${res.status})`);
     return res.text();
   }
@@ -770,6 +811,9 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
    * dispara un preflight OPTIONS que Apps Script no responde, y la petición
    * falla por CORS.
    */
+  // Acciones que solo leen: se pueden repetir sin consecuencias.
+  const ACCIONES_LECTURA = ['leer_dia', 'leer_registro'];
+
   async function enviar(cuerpo) {
     if (!CONFIG.API_URL) {
       throw new Error(
@@ -780,13 +824,43 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
       );
     }
 
-    const res = await fetch(CONFIG.API_URL, {
+    const accion = cuerpo.accion || 'carga_diaria';
+    const esLectura = ACCIONES_LECTURA.indexOf(accion) !== -1;
+
+    // Apps Script arranca en frío seguido y a veces devuelve un 5xx pasajero.
+    // Una lectura se reintenta porque repetirla no cuesta nada; una carga o
+    // un borrado NO, porque reintentar podría duplicar la tanda o borrar de
+    // más sin que nadie se entere.
+    const intentos = esLectura ? 2 : 1;
+    const ms = esLectura ? TIMEOUT_LECTURA_MS : TIMEOUT_ESCRITURA_MS;
+
+    var ultimoError;
+    for (var i = 0; i < intentos; i++) {
+      if (i) await esperar(2000);
+      try {
+        return await enviarUnaVez(cuerpo, ms);
+      } catch (err) {
+        // El script contestó y dijo que no: repetirlo va a dar lo mismo.
+        if (err.definitivo) throw err;
+        ultimoError = err;
+      }
+    }
+    throw ultimoError;
+  }
+
+  async function enviarUnaVez(cuerpo, ms) {
+    const res = await fetchConTimeout(CONFIG.API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(Object.assign({ token: CONFIG.API_TOKEN }, cuerpo))
-    });
+    }, ms, 'La planilla');
 
-    if (!res.ok) throw new Error(`El servidor respondió ${res.status}.`);
+    if (!res.ok) {
+      const err = new Error(`El servidor respondió ${res.status}.`);
+      // Un 4xx no se arregla repitiendo; un 5xx suele ser pasajero.
+      err.definitivo = res.status < 500;
+      throw err;
+    }
 
     const json = await res.json();
 
@@ -797,18 +871,20 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     const desactualizado = !json.version || json.version < CONFIG.API_VERSION;
 
     if (!json.ok) {
-      const detalle = json.error || 'No se pudo guardar.';
+      var detalle = json.error || 'No se pudo guardar.';
       if (desactualizado) {
-        throw new Error(
-          detalle + ' — Probablemente sea porque el script publicado en la planilla ' +
+        detalle += ' — Probablemente sea porque el script publicado en la planilla ' +
           'está desactualizado (' + (json.version ? 'v' + json.version : 'sin versión') +
           ', se necesita v' + CONFIG.API_VERSION + '). Abrí la URL del Web App en el ' +
           'navegador: si no dice "version":' + CONFIG.API_VERSION + ', hay que volver a ' +
           'pegar Code.gs, guardar con Ctrl+S y publicar con el lápiz ✏️ de la ' +
-          'implementación existente eligiendo Versión: "Nueva versión".'
-        );
+          'implementación existente eligiendo Versión: "Nueva versión".';
       }
-      throw new Error(detalle);
+      const err = new Error(detalle);
+      // El script se expresó. Repetir el pedido va a dar exactamente lo mismo,
+      // salvo cuando dice que está ocupado: eso sí se destraba solo.
+      err.definitivo = !/ocupado/i.test(json.error || '');
+      throw err;
     }
 
     return json;
