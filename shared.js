@@ -790,20 +790,27 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
 
     const json = await res.json();
 
-    // Antes de mirar el resultado: si el script publicado es viejo, decirlo.
-    // Si no, devuelve cosas como "Falta la OT." en pedidos que ni tienen OT.
-    if (!json.version || json.version < CONFIG.API_VERSION) {
-      throw new Error(
-        'El script publicado en la planilla está desactualizado (' +
-        (json.version ? 'v' + json.version : 'anterior a v1') +
-        ', se necesita v' + CONFIG.API_VERSION + '). ' +
-        'Copiá de nuevo Code.gs y publicá desde Administrar implementaciones ' +
-        'con el lápiz ✏️ de la implementación que ya existe, eligiendo ' +
-        'Versión: "Nueva versión" (así la URL no cambia).'
-      );
+    // Un script publicado viejo devuelve errores que no se parecen a la
+    // causa (ej. "Falta la OT." al pedir la producción del día). No se
+    // bloquea por eso: si la respuesta vino bien, se usa igual. Solo si
+    // falla se agrega la explicación de qué actualizar.
+    const desactualizado = !json.version || json.version < CONFIG.API_VERSION;
+
+    if (!json.ok) {
+      const detalle = json.error || 'No se pudo guardar.';
+      if (desactualizado) {
+        throw new Error(
+          detalle + ' — Probablemente sea porque el script publicado en la planilla ' +
+          'está desactualizado (' + (json.version ? 'v' + json.version : 'sin versión') +
+          ', se necesita v' + CONFIG.API_VERSION + '). Abrí la URL del Web App en el ' +
+          'navegador: si no dice "version":' + CONFIG.API_VERSION + ', hay que volver a ' +
+          'pegar Code.gs, guardar con Ctrl+S y publicar con el lápiz ✏️ de la ' +
+          'implementación existente eligiendo Versión: "Nueva versión".'
+        );
+      }
+      throw new Error(detalle);
     }
 
-    if (!json.ok) throw new Error(json.error || 'No se pudo guardar.');
     return json;
   }
 
