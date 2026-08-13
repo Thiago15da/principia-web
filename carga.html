@@ -280,9 +280,14 @@
    * después a una fila que ya tenía pieza no aparecía nunca.
    */
   function nota(f) {
-    return [f.pieza, f.observaciones]
-      .map(x => String(x == null ? '' : x).trim())
-      .filter(Boolean).join(' · ') || '—';
+    const partes = [];
+    [f.pieza, f.observaciones].forEach(x => {
+      const t = String(x == null ? '' : x).trim();
+      // Si la planilla tiene una sola columna para las dos cosas, las dos
+      // llegan con el mismo texto y no hay que repetirlo.
+      if (t && partes.indexOf(t) === -1) partes.push(t);
+    });
+    return partes.join(' · ') || '—';
   }
 
   function pintar() {

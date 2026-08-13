@@ -15,7 +15,7 @@
 // Se sube al cambiar el contrato con la web. La app lo compara y avisa si
 // la planilla quedó con una versión vieja publicada: sin esto, un script
 // desactualizado da errores que no se parecen en nada a la causa real.
-const VERSION = 6;
+const VERSION = 7;
 
 const CONFIG = {
   // gid de la pestaña de órdenes de trabajo — es el mismo número que ya
@@ -44,6 +44,41 @@ const COLUMNAS_REGISTRO = [
   'id', 'fecha', 'sector', 'operario', 'cantidad_moldes', 'kg_por_molde',
   'total_kg', 'pieza', 'id_ot', 'piezas', 'observaciones', 'creado_en'
 ];
+
+// Nombres alternativos aceptados para una columna del parte.
+//
+// La hoja la llevan personas y la columna de notas aparece escrita de varias
+// formas según quién la armó. Buscándola solo por el nombre exacto, el texto
+// quedaba invisible en la página aunque estuviera cargado en la planilla:
+// ni la lectura lo encontraba ni la escritura sabía dónde ponerlo.
+//
+// Mismo criterio que CORE_FIELD_ALIASES en shared.js para la hoja de OTs.
+const ALIAS_REGISTRO = {
+  pieza: ['pieza / observaciones', 'pieza/observaciones', 'descripcion',
+    'descripcion de la pieza', 'detalle', 'trabajo'],
+  observaciones: ['observacion', 'obs', 'obs.', 'nota', 'notas',
+    'comentario', 'comentarios', 'pieza / observaciones', 'pieza/observaciones'],
+  operario: ['operarios', 'responsable'],
+  cantidad_moldes: ['cantidad', 'cantidad de moldes', 'moldes'],
+  kg_por_molde: ['kg por molde', 'kg/molde'],
+  total_kg: ['total de kg', 'total kg', 'kg total']
+};
+
+/**
+ * Índice de una columna aceptando sus alias. El nombre exacto siempre gana;
+ * los alias solo entran si la columna canónica no está.
+ */
+function indiceColumnaCon(encabezados, nombre) {
+  var i = indiceColumna(encabezados, nombre);
+  if (i !== -1) return i;
+
+  const alias = ALIAS_REGISTRO[nombre] || [];
+  for (var a = 0; a < alias.length; a++) {
+    i = indiceColumna(encabezados, alias[a]);
+    if (i !== -1) return i;
+  }
+  return -1;
+}
 
 const SECTORES_VALIDOS = ['Carpintería', 'Moldeo', 'Fundición', 'Terminación'];
 
@@ -104,8 +139,11 @@ function getHojaRegistro() {
     ? hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0]
     : [];
 
+  // Con alias: si la hoja ya tiene la columna con otro nombre, se respeta el
+  // que está en vez de agregar una segunda al lado. Duplicarla era peor que
+  // no tenerla: se escribía en una y se leía de la otra.
   COLUMNAS_REGISTRO.forEach(function (col) {
-    if (indiceColumna(encabezados, col) === -1) {
+    if (indiceColumnaCon(encabezados, col) === -1) {
       encabezados.push(col);
       hoja.getRange(1, encabezados.length).setValue(col).setFontWeight('bold');
     }
@@ -114,17 +152,23 @@ function getHojaRegistro() {
   return hoja;
 }
 
-/** Agrega una fila al parte diario ubicando cada valor por su encabezado. */
+/**
+ * Agrega una fila al parte diario ubicando cada valor por su encabezado.
+ *
+ * Se resuelve del campo hacia la columna y no al revés: antes se recorrían
+ * los encabezados buscando un dato que se llamara igual, así que un
+ * encabezado con otro nombre no recibía nada y el dato se perdía sin aviso.
+ */
 function agregarRegistro(datos) {
   const hoja = getHojaRegistro();
   const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
 
-  const fila = encabezados.map(function (col) {
-    const clave = normalizar(col);
-    for (var k in datos) {
-      if (normalizar(k) === clave) return datos[k];
-    }
-    return '';
+  const fila = [];
+  for (var i = 0; i < encabezados.length; i++) fila.push('');
+
+  COLUMNAS_REGISTRO.forEach(function (campo) {
+    const i = indiceColumnaCon(encabezados, campo);
+    if (i !== -1 && datos[campo] !== undefined) fila[i] = datos[campo];
   });
 
   hoja.appendRow(fila);
@@ -252,7 +296,7 @@ function filasRegistro(filtro) {
   const idx = {};
   var anchoUtil = 1;
   COLUMNAS_REGISTRO.forEach(function (c) {
-    idx[c] = indiceColumna(encabezados, c);
+    idx[c] = indiceColumnaCon(encabezados, c);
     if (idx[c] + 1 > anchoUtil) anchoUtil = idx[c] + 1;
   });
 
@@ -365,7 +409,7 @@ function doGet() {
   const encabezados = hoja.getLastColumn()
     ? hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0] : [];
   const faltan = COLUMNAS_REGISTRO.filter(function (c) {
-    return indiceColumna(encabezados, c) === -1;
+    return indiceColumnaCon(encabezados, c) === -1;
   });
 
   return jsonResponse({
