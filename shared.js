@@ -21,7 +21,7 @@ window.RVH = (function () {
     // Debe coincidir con VERSION en apps-script/Code.gs. Si la planilla
     // tiene publicada una versión anterior, los errores que devuelve no se
     // parecen a la causa real, así que se detecta y se dice explícitamente.
-    API_VERSION: 6,
+    API_VERSION: 7,
 
     REFRESH_MS: 60000,
 
