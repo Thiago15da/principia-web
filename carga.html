@@ -272,6 +272,19 @@
   const sumar = (filas, campo) => filas.reduce((s, f) => s + f[campo], 0);
   const tandas = n => n + ' tanda' + (n === 1 ? '' : 's');
 
+  /**
+   * Lo anotado de la tanda: las dos columnas juntas, no una u otra.
+   *
+   * El formulario escribe en `pieza`, pero `observaciones` se completa a mano
+   * en la planilla. Mostrando `pieza || observaciones`, una nota agregada
+   * después a una fila que ya tenía pieza no aparecía nunca.
+   */
+  function nota(f) {
+    return [f.pieza, f.observaciones]
+      .map(x => String(x == null ? '' : x).trim())
+      .filter(Boolean).join(' · ') || '—';
+  }
+
   function pintar() {
     const u = uni();
     const filas = delDia.filter(f => f.sector === sector);
@@ -327,7 +340,7 @@
         <td class="num mono"><b>${f.cantidad_moldes}</b></td>
         ${u.kg ? `<td class="num mono">${f.kg_por_molde}</td>
         <td class="num mono"><b>${kg(f.total_kg)}</b></td>` : ''}
-        <td>${esc(f.pieza || f.observaciones || '—')}</td>
+        <td>${esc(nota(f))}</td>
       </tr>`).join('')}</tbody></table></div>`
       : `<div class="empty">Sin tandas de ${esc(sector)} en esta fecha.</div>`;
   }
@@ -683,7 +696,7 @@
           <td class="num mono"><b>${f.cantidad_moldes}</b></td>
           ${conKg ? `<td class="num mono">${fkg ? f.kg_por_molde : '—'}</td>
           <td class="num mono"><b>${fkg ? kg(f.total_kg) : '—'}</b></td>` : ''}
-          <td>${esc(f.pieza || f.observaciones || '—')}</td>
+          <td>${esc(nota(f))}</td>
           <td class="cuando">${esc(cuando(f.creado_en, f.fecha))}</td>
         </tr>`; }).join('')}</tbody></table></div>
       </div>`;
@@ -787,7 +800,7 @@
     // Encabezado neutro: el archivo puede traer los cuatro sectores juntos,
     // y cada uno cuenta una cosa distinta. La columna Sector lo desambigua.
     const cab = ['Fecha', 'Sector', 'Operario', 'Cantidad', 'Unidad', 'Kg por unidad',
-      'Total kg', 'Pieza / Observaciones', 'Cargado'];
+      'Total kg', 'Pieza', 'Observaciones', 'Cargado'];
     const campo = v => {
       const s = String(v == null ? '' : v);
       return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -798,7 +811,7 @@
       const fu = R.unidadDe(f.sector);
       return [f.fecha, f.sector, f.operario, f.cantidad_moldes, fu.plural,
         fu.kg ? f.kg_por_molde : '', fu.kg ? f.total_kg : '',
-        f.pieza || f.observaciones || '', f.creado_en];
+        f.pieza || '', f.observaciones || '', f.creado_en];
     });
     const csv = '﻿' + [cab].concat(filas).map(r => r.map(campo).join(';')).join('\r\n');
 
