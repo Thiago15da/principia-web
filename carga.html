@@ -142,16 +142,18 @@
       <input id="operario" class="campo" placeholder="Ej: Pablo y Max" autocomplete="off" required>
     </div>
 
-    <div class="grid3" style="margin-bottom:12px">
+    <!-- Las dos celdas de kilos se ocultan en los sectores que no los llevan
+         (carpintería y terminación), y ahí la fila queda de una sola columna. -->
+    <div class="grid3" id="gridCant" style="margin-bottom:12px">
       <div>
-        <label class="lab" for="moldes">Cantidad de moldes</label>
+        <label class="lab" for="moldes" id="labCant">Cantidad de moldes</label>
         <input id="moldes" class="campo" type="number" min="1" step="1" inputmode="numeric" required>
       </div>
-      <div>
-        <label class="lab" for="kg">Kg por molde</label>
-        <input id="kg" class="campo" type="number" min="0" step="0.01" inputmode="decimal" required>
+      <div id="celdaKg">
+        <label class="lab" for="kg" id="labKg">Kg por molde</label>
+        <input id="kg" class="campo" type="number" min="0" step="0.01" inputmode="decimal">
       </div>
-      <div>
+      <div id="celdaTotal">
         <span class="lab">Total de kg</span>
         <div class="calc" id="calcKg">—</div>
       </div>
@@ -187,7 +189,7 @@
   <div id="registro"></div>
 
   <div class="selbar" id="selbar" hidden>
-    <span><b id="selN">0</b> tanda(s) · <b id="selKg">0</b> kg</span>
+    <span><b id="selN">0</b> tanda(s) · <b id="selKg">0</b></span>
     <span style="flex:1"></span>
     <button type="button" class="btn" id="selNada" style="background:transparent;border-color:rgba(255,255,255,.55);color:#fff">Deseleccionar</button>
     <button type="button" class="btn danger" id="selBorrar">Borrar</button>
@@ -220,14 +222,43 @@
       $('#secbar').querySelectorAll('button').forEach(x =>
         x.setAttribute('aria-pressed', String(x.textContent === s)));
       $('#totalSector').textContent = s;
+      aplicarSector();
       // Sin ir a la planilla: los cuatro sectores ya están en memoria.
       refrescar();
     });
     $('#secbar').appendChild(b);
   });
 
+  /** Unidad del sector que se está cargando ahora. */
+  const uni = () => R.unidadDe(sector);
+
+  /**
+   * Pone el formulario en el idioma del sector: en carpintería se cuentan
+   * modelos, en moldeo y fundición moldes, en terminación piezas. Donde no
+   * hay metal de por medio los kilos no se piden, así el operario no tiene
+   * que inventar un número que después nadie va a mirar.
+   */
+  function aplicarSector() {
+    const u = uni();
+    const may = u.plural.charAt(0).toUpperCase() + u.plural.slice(1);
+
+    $('#labCant').textContent = 'Cantidad de ' + u.plural;
+    $('#moldes').placeholder = '';
+    $('#celdaKg').hidden = !u.kg;
+    $('#celdaTotal').hidden = !u.kg;
+    $('#kg').required = u.kg;
+    $('#labKg').textContent = 'Kg por ' + u.sing;
+    $('#gridCant').style.gridTemplateColumns = u.kg ? '' : '1fr';
+
+    if (!u.kg) $('#kg').value = '';
+    recalcular();
+    return may;
+  }
+
   // ---------------- total en vivo ----------------
   function recalcular() {
+    const u = uni();
+    if (!u.kg) { $('#calcKg').textContent = '—'; return; }
     const m = Number($('#moldes').value), k = Number($('#kg').value);
     $('#calcKg').textContent = (isFinite(m) && isFinite(k) && m > 0 && k >= 0)
       ? (m * k).toLocaleString('es-PY') + ' kg' : '—';
@@ -238,14 +269,28 @@
   // ---------------- planilla del día ----------------
   const kg = n => Math.round(n).toLocaleString('es-PY');
 
-  function pintar() {
-    const filas = delDia.filter(f => f.sector === sector);
-    const total = filas.reduce((s, f) => s + f.total_kg, 0);
-    $('#totalKg').innerHTML = kg(total) + ' <span>kg</span>';
+  const sumar = (filas, campo) => filas.reduce((s, f) => s + f[campo], 0);
+  const tandas = n => n + ' tanda' + (n === 1 ? '' : 's');
 
-    // Resumen: todo el día de un vistazo, los cuatro sectores juntos.
-    const totalGral = delDia.reduce((s, f) => s + f.total_kg, 0);
-    const moldesGral = delDia.reduce((s, f) => s + f.cantidad_moldes, 0);
+  function pintar() {
+    const u = uni();
+    const filas = delDia.filter(f => f.sector === sector);
+
+    // El número grande de arriba habla en la unidad del sector: kilos donde
+    // hay metal, y la cuenta de modelos o piezas donde no.
+    $('#totalKg').innerHTML = u.kg
+      ? kg(sumar(filas, 'total_kg')) + ' <span>kg</span>'
+      : sumar(filas, 'cantidad_moldes').toLocaleString('es-PY') +
+        ' <span>' + esc(u.plural) + '</span>';
+
+    // Resumen: todo el día de un vistazo, los cuatro sectores juntos. Los
+    // kilos de la planta son los de moldeo y fundición; sumarles carpintería
+    // y terminación no daría nada, así que esas van contadas aparte.
+    const totalGral = sumar(delDia, 'total_kg');
+    const porUnidad = R.SECTORES.map(sec => {
+      const n = sumar(delDia.filter(x => x.sector === sec), 'cantidad_moldes');
+      return n ? R.contar(n, sec) : '';
+    }).filter(Boolean).join(' · ');
 
     $('#resumen').innerHTML = `
       <div class="granTotal">
@@ -253,31 +298,35 @@
           <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.75">
             Total de la planta · ${esc(fechaLinda($('#fecha').value))}</div>
           <div style="font-size:12px;opacity:.8;margin-top:2px">
-            ${moldesGral} moldes en ${delDia.length} tanda${delDia.length === 1 ? '' : 's'}</div>
+            ${esc(porUnidad || 'sin cargar')} · ${tandas(delDia.length)}</div>
         </div>
         <div class="val">${kg(totalGral)} <span style="font-size:16px;opacity:.8">kg</span></div>
       </div>
       <div class="resumen">${R.SECTORES.map(sec => {
+        const su = R.unidadDe(sec);
         const f = delDia.filter(x => x.sector === sec);
-        const t = f.reduce((s, x) => s + x.total_kg, 0);
+        const t = su.kg ? sumar(f, 'total_kg') : sumar(f, 'cantidad_moldes');
         const op = Array.from(new Set(f.map(x => x.operario).filter(Boolean)));
         return `<div class="tarj ${sec === sector ? 'act' : ''}">
           <div class="rot">${esc(sec)}</div>
-          <div class="val" style="color:${t ? 'var(--ink)' : 'var(--neutro)'}">${kg(t)}<span
-            style="font-size:13px;color:var(--ink-soft)"> kg</span></div>
-          <div class="pie">${f.length ? f.length + ' tanda' + (f.length === 1 ? '' : 's') : 'sin cargar'}${
+          <div class="val" style="color:${t ? 'var(--ink)' : 'var(--neutro)'}">${
+            t.toLocaleString('es-PY')}<span
+            style="font-size:13px;color:var(--ink-soft)"> ${esc(su.kg ? 'kg' : su.plural)}</span></div>
+          <div class="pie">${f.length ? tandas(f.length) : 'sin cargar'}${
             op.length ? ' · ' + esc(op.join(', ')) : ''}</div>
         </div>`;
       }).join('')}</div>`;
 
+    const may = u.plural.charAt(0).toUpperCase() + u.plural.slice(1);
     $('#filas').innerHTML = filas.length ? `<div class="tablebox"><table class="filas"><thead><tr>
-        <th>Operario</th><th class="num">Moldes</th><th class="num">Kg/molde</th>
-        <th class="num">Total kg</th><th>Pieza / Observaciones</th>
+        <th>Operario</th><th class="num">${esc(may)}</th>
+        ${u.kg ? `<th class="num">Kg/${esc(u.sing)}</th><th class="num">Total kg</th>` : ''}
+        <th>Pieza / Observaciones</th>
       </tr></thead><tbody>${filas.map(f => `<tr style="cursor:default">
         <td>${esc(f.operario)}</td>
-        <td class="num mono">${f.cantidad_moldes}</td>
-        <td class="num mono">${f.kg_por_molde}</td>
-        <td class="num mono"><b>${kg(f.total_kg)}</b></td>
+        <td class="num mono"><b>${f.cantidad_moldes}</b></td>
+        ${u.kg ? `<td class="num mono">${f.kg_por_molde}</td>
+        <td class="num mono"><b>${kg(f.total_kg)}</b></td>` : ''}
         <td>${esc(f.pieza || '—')}</td>
       </tr>`).join('')}</tbody></table></div>`
       : `<div class="empty">Sin tandas de ${esc(sector)} en esta fecha.</div>`;
@@ -408,52 +457,81 @@
     const dias = porDia(filas);
     const totKg = filas.reduce((s, f) => s + f.total_kg, 0);
     const totMoldes = filas.reduce((s, f) => s + f.cantidad_moldes, 0);
-    const mejor = dias.reduce((a, b) => b.kg > a.kg ? b : a, dias[0]);
-    const promDia = totKg / dias.length;
+
+    const todos = $('#regTodos').checked;
+    // Mirando un sector solo, se mide en su unidad. Mirando los cuatro juntos
+    // no hay unidad común, y los kilos son lo único que se puede sumar.
+    const u = todos ? R.unidadDe('') : uni();
+    const ambito = todos ? 'toda la planta' : sector;
+
+    // De qué se habla en los KPI, el gráfico y el ranking: kilos donde los
+    // kilos existen, y la cuenta de modelos o piezas donde no.
+    const enKg = u.kg;
+    const campo = enKg ? 'kg' : 'moldes';
+    const rot = enKg ? 'kg' : u.plural;
+
+    const total = enKg ? totKg : totMoldes;
+    const mejor = dias.reduce((a, b) => b[campo] > a[campo] ? b : a, dias[0]);
+    const promDia = total / dias.length;
     // Promedio ponderado real: no es el promedio de los kg/molde cargados,
     // porque cada tanda pesa distinto según cuántos moldes tenga.
-    const kgMolde = totMoldes ? totKg / totMoldes : 0;
-
-    const ambito = $('#regTodos').checked ? 'toda la planta' : sector;
+    //
+    // Mirando la planta entera se divide solo por las unidades que llevan
+    // kilos: sumarle los modelos de carpintería al divisor bajaría el número
+    // sin que nadie haya producido más liviano.
+    const filasConKg = filas.filter(f => R.unidadDe(f.sector).kg);
+    const molPesados = filasConKg.reduce((s, f) => s + f.cantidad_moldes, 0);
+    const kgMolde = molPesados ? totKg / molPesados : 0;
     const num = (n, d) => n.toLocaleString('es-PY', { maximumFractionDigits: d == null ? 0 : d });
+
+    // La cuenta de unidades y los kg por unidad solo tienen sentido donde se
+    // llevan kilos; en un solo sector sin kilos el total ya es la cuenta.
+    const extra = enKg ? `
+      <div class="kpi"><div class="rot">${esc(u.plural.charAt(0).toUpperCase() + u.plural.slice(1))}</div>
+        <div class="val">${num(totMoldes)}</div>
+        <div class="pie">${tandas(filas.length)}</div></div>
+      <div class="kpi"><div class="rot">Kg por ${esc(u.sing)}</div>
+        <div class="val">${num(kgMolde, 1)} <u>kg</u></div>
+        <div class="pie">promedio ponderado</div></div>`
+      : `<div class="kpi"><div class="rot">Tandas</div>
+        <div class="val">${num(filas.length)}</div>
+        <div class="pie">cargas del período</div></div>`;
 
     $('#analisis').innerHTML = `
       <div class="kpis">
         <div class="kpi"><div class="rot">Total del período</div>
-          <div class="val">${num(totKg)} <u>kg</u></div>
+          <div class="val">${num(total)} <u>${esc(rot)}</u></div>
           <div class="pie">${esc(ambito)}</div></div>
         <div class="kpi"><div class="rot">Promedio por día</div>
-          <div class="val">${num(promDia)} <u>kg</u></div>
+          <div class="val">${num(promDia)} <u>${esc(rot)}</u></div>
           <div class="pie">sobre ${dias.length} día${dias.length === 1 ? '' : 's'} trabajado${dias.length === 1 ? '' : 's'}</div></div>
         <div class="kpi"><div class="rot">Mejor día</div>
-          <div class="val">${num(mejor.kg)} <u>kg</u></div>
+          <div class="val">${num(mejor[campo])} <u>${esc(rot)}</u></div>
           <div class="pie">${esc(ddmm(mejor.fecha))}</div></div>
-        <div class="kpi"><div class="rot">Moldes</div>
-          <div class="val">${num(totMoldes)}</div>
-          <div class="pie">${filas.length} tanda${filas.length === 1 ? '' : 's'}</div></div>
-        <div class="kpi"><div class="rot">Kg por molde</div>
-          <div class="val">${num(kgMolde, 1)} <u>kg</u></div>
-          <div class="pie">promedio ponderado</div></div>
+        ${extra}
       </div>
 
       <div class="panel">
         <h3>Producción diaria</h3>
-        <div class="sub">Kilos por día · ${esc(ambito)}${dias.length > 30 ? ' · últimos 30 días con carga' : ''}</div>
-        <div class="chartbox">${grafico(dias.slice(-30))}</div>
+        <div class="sub">${esc(enKg ? 'Kilos' : u.plural.charAt(0).toUpperCase() + u.plural.slice(1))} por día · ${
+          esc(ambito)}${dias.length > 30 ? ' · últimos 30 días con carga' : ''}${
+          todos ? ' · carpintería y terminación no llevan kilos' : ''}</div>
+        <div class="chartbox">${grafico(dias.slice(-30), campo, rot, u)}</div>
       </div>
 
-      ${ranking(filas, 'operario', 'Producción por operario', 'Kilos acumulados en el período')}
-      ${$('#regTodos').checked ? ranking(filas, 'sector', 'Producción por sector', 'Kilos acumulados en el período') : ''}`;
+      ${ranking(filas, 'operario', 'Producción por operario', enKg && !todos, todos ? 'unidades' : rot)}
+      ${todos ? ranking(filas, 'sector', 'Producción por sector', false, 'unidades') : ''}`;
   }
 
   /**
-   * Barras verticales de kilos por día, SVG a mano.
+   * Barras verticales por día, SVG a mano. `campo` dice qué se mide: 'kg'
+   * donde hay metal, 'moldes' (la cuenta) en carpintería y terminación.
    *
    * Una sola serie, así que no lleva leyenda: el título ya dice qué se
    * está midiendo. Se etiquetan solo el máximo y el último día; poner el
    * número sobre cada barra vuelve ilegible un mes de producción.
    */
-  function grafico(dias) {
+  function grafico(dias, campo, rot, u) {
     // padR deja lugar para que la fecha del último día, centrada bajo su
     // barra, no quede cortada contra el borde del gráfico.
     const padL = 46, padR = 24, padT = 18, padB = 30;
@@ -469,7 +547,7 @@
     const ancho = Math.max(300, padL + padR + dias.length * anchoBarra);
     const h = alto - padT - padB;
 
-    const max = Math.max.apply(null, dias.map(d => d.kg)) || 1;
+    const max = Math.max.apply(null, dias.map(d => d[campo])) || 1;
     // Techo redondeado hacia arriba, para que la grilla caiga en números
     // que se puedan leer de un vistazo.
     const paso = Math.pow(10, Math.floor(Math.log10(max))) / 2;
@@ -487,34 +565,37 @@
     // finas y "29 jun" ocupa el lugar de tres.
     const caben = Math.max(2, Math.floor((ancho - padL - padR) / 46));
     const cadaN = Math.ceil(dias.length / caben);
-    const iMax = dias.reduce((a, d, i) => dias[a].kg >= d.kg ? a : i, 0);
+    const iMax = dias.reduce((a, d, i) => dias[a][campo] >= d[campo] ? a : i, 0);
 
     const barras = dias.map((d, i) => {
       const x = padL + i * anchoBarra;
       const w = anchoBarra - hueco;
-      const yy = y(d.kg), alt = Math.max(padT + h - yy, 1);
+      const yy = y(d[campo]), alt = Math.max(padT + h - yy, 1);
       const r = Math.min(4, w / 2, alt);
       const path = `M${x},${yy + alt} L${x},${yy + r} Q${x},${yy} ${x + r},${yy} ` +
         `L${x + w - r},${yy} Q${x + w},${yy} ${x + w},${yy + r} L${x + w},${yy + alt} Z`;
       // Solo el máximo y el último día llevan número, y el último se calla
       // si está pegado al máximo: dos etiquetas juntas se pisan.
       const etiqueta = i === iMax || (i === dias.length - 1 && iMax < i - 1)
-        ? `<text class="dato" x="${x + w / 2}" y="${yy - 5}" text-anchor="middle">${Math.round(d.kg).toLocaleString('es-PY')}</text>`
+        ? `<text class="dato" x="${x + w / 2}" y="${yy - 5}" text-anchor="middle">${Math.round(d[campo]).toLocaleString('es-PY')}</text>`
         : '';
       const ultimo = i === dias.length - 1;
       const fecha = ultimo || (i % cadaN === 0 && dias.length - 1 - i >= Math.max(2, cadaN))
         ? `<text x="${x + w / 2}" y="${padT + h + 13}" text-anchor="middle">${esc(ddmm(d.fecha))}</text>` : '';
+      // El globo dice siempre las dos cosas: lo que se grafica y el resto.
+      const detalle = campo === 'kg'
+        ? Math.round(d.kg).toLocaleString('es-PY') + ' kg · ' + d.moldes + ' ' + u.plural
+        : d.moldes.toLocaleString('es-PY') + ' ' + u.plural;
       return `<g><path class="bar" d="${path}"><title>${esc(ddmm(d.fecha))} · ${
-        Math.round(d.kg).toLocaleString('es-PY')} kg · ${d.moldes} moldes en ${d.tandas} tanda${
-        d.tandas === 1 ? '' : 's'}</title></path>${etiqueta}${fecha}</g>`;
+        esc(detalle)} en ${tandas(d.tandas)}</title></path>${etiqueta}${fecha}</g>`;
     }).join('');
 
     return `<svg class="chart" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}"
-      role="img" aria-label="Kilos producidos por día">${lineas}${barras}</svg>`;
+      role="img" aria-label="${esc(rot.charAt(0).toUpperCase() + rot.slice(1))} por día">${lineas}${barras}</svg>`;
   }
 
   /** Barras horizontales acumuladas por operario o por sector. */
-  function ranking(filas, campo, titulo, sub) {
+  function ranking(filas, campo, titulo, enKg, rot) {
     const mapa = new Map();
     filas.forEach(f => {
       const k = (f[campo] || '').trim() || '(sin indicar)';
@@ -522,17 +603,30 @@
       g.kg += f.total_kg; g.moldes += f.cantidad_moldes;
       mapa.set(k, g);
     });
+    const medir = x => enKg ? x.kg : x.moldes;
     const lista = Array.from(mapa.entries()).map(([nom, g]) => ({ nom, ...g }))
-      .sort((a, b) => b.kg - a.kg).slice(0, 8);
+      .sort((a, b) => medir(b) - medir(a)).slice(0, 8);
     if (lista.length < 2) return '';
 
-    const max = lista[0].kg || 1;
+    // En el ranking por sector cada fila lleva su propia unidad: decir "0 kg"
+    // en carpintería y terminación las mostraba como si no hubieran hecho
+    // nada, cuando lo que pasa es que ahí no se pesa.
+    const porSector = campo === 'sector';
+    const sufijo = x => porSector ? ' ' + R.unidadDe(x.nom).plural : (enKg ? ' kg' : ' ' + rot);
+
+    const max = medir(lista[0]) || 1;
+    // Redacción neutra a propósito: "unidades acumulados" no concuerda, y
+    // el género cambia según la unidad (piezas vs. moldes).
+    const sub = porSector
+      ? 'Producción acumulada, cada sector en su unidad'
+      : 'Acumulado en el período · ' + (enKg ? 'kilos' : rot);
+
     return `<div class="panel">
       <h3>${esc(titulo)}</h3><div class="sub">${esc(sub)}</div>
       <div class="rank">${lista.map(x => `<div class="rankFila">
         <span class="nom" title="${esc(x.nom)}">${esc(x.nom)}</span>
-        <span class="via"><i style="width:${(x.kg / max * 100).toFixed(1)}%"></i></span>
-        <span class="n">${Math.round(x.kg).toLocaleString('es-PY')} kg</span>
+        <span class="via"><i style="width:${(medir(x) / max * 100).toFixed(1)}%"></i></span>
+        <span class="n">${Math.round(medir(x)).toLocaleString('es-PY')}${esc(sufijo(x))}</span>
       </div>`).join('')}</div>
     </div>`;
   }
@@ -553,34 +647,45 @@
     });
 
     const todos = $('#regTodos').checked;
+    // Con los cuatro sectores mezclados no hay una unidad común, así que la
+    // columna se llama "Cantidad" y los kilos quedan en blanco donde no van.
+    const u = todos ? R.unidadDe('') : uni();
+    const conKg = u.kg;
+    const rotCant = todos ? 'Cantidad' : u.plural.charAt(0).toUpperCase() + u.plural.slice(1);
 
     $('#registro').innerHTML = porFecha.map(g => {
-      const totKg = g.filas.reduce((s, f) => s + f.total_kg, 0);
-      const totMoldes = g.filas.reduce((s, f) => s + f.cantidad_moldes, 0);
+      const totKg = sumar(g.filas, 'total_kg');
+      const totCant = sumar(g.filas, 'cantidad_moldes');
       const todasMarcadas = g.filas.every(f => seleccion.has(f.id));
       return `<div class="dia">
         <div class="diaCab">
           <div>
             <span class="f">${esc(fechaLinda(g.fecha))}</span>
-            <span class="d"> · ${esc(nombreDia(g.fecha))} · ${totMoldes} moldes en ${g.filas.length} tanda${g.filas.length === 1 ? '' : 's'}</span>
+            <span class="d"> · ${esc(nombreDia(g.fecha))} · ${
+              esc(todos ? totCant + ' ' + u.plural : R.contar(totCant, sector))} en ${tandas(g.filas.length)}</span>
           </div>
-          <div class="t">${kg(totKg)} kg</div>
+          <div class="t">${conKg ? kg(totKg) + ' kg' : totCant.toLocaleString('es-PY') + ' ' + esc(u.plural)}</div>
         </div>
         <div class="tablebox"><table class="filas"><thead><tr>
           <th class="sel"><input type="checkbox" data-dia="${esc(g.fecha)}" title="Seleccionar el día entero"${todasMarcadas ? ' checked' : ''}></th>
           ${todos ? '<th>Sector</th>' : ''}
-          <th>Operario</th><th class="num">Moldes</th><th class="num">Kg/molde</th>
-          <th class="num">Total kg</th><th>Pieza / Observaciones</th><th>Cargado</th>
-        </tr></thead><tbody>${g.filas.map(f => `<tr style="cursor:default"${seleccion.has(f.id) ? ' class="marcada"' : ''}>
+          <th>Operario</th><th class="num">${esc(rotCant)}</th>
+          ${conKg ? `<th class="num">Kg/${esc(todos ? 'u' : u.sing)}</th><th class="num">Total kg</th>` : ''}
+          <th>Pieza / Observaciones</th><th>Cargado</th>
+        </tr></thead><tbody>${g.filas.map(f => {
+          // En la vista mezclada, una fila de carpintería no tiene kilos que
+          // mostrar: va un guion, no un cero que parezca producción medida.
+          const fkg = R.unidadDe(f.sector).kg;
+          return `<tr style="cursor:default"${seleccion.has(f.id) ? ' class="marcada"' : ''}>
           <td class="sel"><input type="checkbox" data-id="${f.id}"${seleccion.has(f.id) ? ' checked' : ''}></td>
           ${todos ? '<td>' + esc(f.sector) + '</td>' : ''}
           <td>${esc(f.operario)}</td>
-          <td class="num mono">${f.cantidad_moldes}</td>
-          <td class="num mono">${f.kg_por_molde}</td>
-          <td class="num mono"><b>${kg(f.total_kg)}</b></td>
+          <td class="num mono"><b>${f.cantidad_moldes}</b></td>
+          ${conKg ? `<td class="num mono">${fkg ? f.kg_por_molde : '—'}</td>
+          <td class="num mono"><b>${fkg ? kg(f.total_kg) : '—'}</b></td>` : ''}
           <td>${esc(f.pieza || f.observaciones || '—')}</td>
           <td class="cuando">${esc(cuando(f.creado_en, f.fecha))}</td>
-        </tr>`).join('')}</tbody></table></div>
+        </tr>`; }).join('')}</tbody></table></div>
       </div>`;
     }).join('');
   }
@@ -605,11 +710,19 @@
     return filasVisibles().filter(f => seleccion.has(f.id));
   }
 
+  /** Cuánto suma un conjunto de tandas, en la unidad que corresponda. */
+  function magnitud(filas) {
+    const u = $('#regTodos').checked ? R.unidadDe('') : uni();
+    return u.kg
+      ? kg(sumar(filas, 'total_kg')) + ' kg'
+      : sumar(filas, 'cantidad_moldes').toLocaleString('es-PY') + ' ' + u.plural;
+  }
+
   function pintarSelbar() {
     const sel = marcadas();
     $('#selbar').hidden = !sel.length;
     $('#selN').textContent = sel.length;
-    $('#selKg').textContent = kg(sel.reduce((s, f) => s + f.total_kg, 0));
+    $('#selKg').textContent = magnitud(sel);
   }
 
   // Delegado: el registro se vuelve a dibujar entero en cada refresco, así
@@ -647,9 +760,8 @@
     const sel = marcadas();
     const ids = sel.map(f => f.id);
     if (!ids.length) return;
-    const total = sel.reduce((s, f) => s + f.total_kg, 0);
-    if (!confirm('Se van a borrar ' + ids.length + ' tanda(s) por ' + kg(total) +
-      ' kg. Esto no se puede deshacer. ¿Confirmás?')) return;
+    if (!confirm('Se van a borrar ' + ids.length + ' tanda(s) por ' + magnitud(sel) +
+      '. Esto no se puede deshacer. ¿Confirmás?')) return;
 
     $('#selBorrar').disabled = true;
     $('#selBorrar').textContent = 'Borrando...';
@@ -672,15 +784,22 @@
     // pantalla dice Moldeo, el archivo no debería traer los otros tres.
     const aExportar = filasVisibles();
     if (!aExportar.length) return aviso('No hay nada para exportar en este período.', 'warn');
-    const cab = ['Fecha', 'Sector', 'Operario', 'Moldes', 'Kg por molde', 'Total kg', 'Pieza / Observaciones', 'Cargado'];
+    // Encabezado neutro: el archivo puede traer los cuatro sectores juntos,
+    // y cada uno cuenta una cosa distinta. La columna Sector lo desambigua.
+    const cab = ['Fecha', 'Sector', 'Operario', 'Cantidad', 'Unidad', 'Kg por unidad',
+      'Total kg', 'Pieza / Observaciones', 'Cargado'];
     const campo = v => {
       const s = String(v == null ? '' : v);
       return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
     // Separador punto y coma: es lo que espera el Excel en español, que es
     // con lo que se abre esto en la oficina.
-    const filas = aExportar.map(f => [f.fecha, f.sector, f.operario, f.cantidad_moldes,
-      f.kg_por_molde, f.total_kg, f.pieza || f.observaciones || '', f.creado_en]);
+    const filas = aExportar.map(f => {
+      const fu = R.unidadDe(f.sector);
+      return [f.fecha, f.sector, f.operario, f.cantidad_moldes, fu.plural,
+        fu.kg ? f.kg_por_molde : '', fu.kg ? f.total_kg : '',
+        f.pieza || f.observaciones || '', f.creado_en];
+    });
     const csv = '﻿' + [cab].concat(filas).map(r => r.map(campo).join(';')).join('\r\n');
 
     const a = document.createElement('a');
@@ -732,17 +851,21 @@
   $('#form').addEventListener('submit', async e => {
     e.preventDefault();
 
-    const moldes = Number($('#moldes').value);
-    const kg = Number($('#kg').value);
-    if (!(moldes > 0)) return aviso('La cantidad de moldes tiene que ser mayor a 0.', 'err');
-    if (!(kg >= 0)) return aviso('Poné los kg por molde.', 'err');
+    const u = uni();
+    const cant = Number($('#moldes').value);
+    // Donde no se llevan kilos se manda 0: la planilla guarda siempre en las
+    // mismas columnas, y un 0 ahí significa "este sector no pesa lo que hace".
+    const kgU = u.kg ? Number($('#kg').value) : 0;
+
+    if (!(cant > 0)) return aviso('La cantidad de ' + u.plural + ' tiene que ser mayor a 0.', 'err');
+    if (u.kg && !(kgU >= 0)) return aviso('Poné los kg por ' + u.sing + '.', 'err');
 
     const datos = {
       fecha: $('#fecha').value,
       sector,
       operario: $('#operario').value.trim(),
-      cantidad_moldes: moldes,
-      kg_por_molde: kg,
+      cantidad_moldes: cant,
+      kg_por_molde: kgU,
       pieza: $('#pieza').value.trim()
     };
 
@@ -751,7 +874,8 @@
 
     try {
       const r = await R.registrarCargaDiaria(datos);
-      aviso(`Cargado: ${moldes} moldes · ${r.total_kg.toLocaleString('es-PY')} kg`, 'ok');
+      aviso('Cargado: ' + R.contar(cant, sector) +
+        (u.kg ? ' · ' + r.total_kg.toLocaleString('es-PY') + ' kg' : ''), 'ok');
 
       // El operario y el sector se mantienen: normalmente carga varias
       // tandas seguidas del mismo turno.
@@ -771,6 +895,7 @@
   // ---------------- init ----------------
   $('#fecha').addEventListener('change', sincronizarDia);
 
+  aplicarSector();
   // Un solo viaje a la planilla para toda la pantalla.
   traerRegistro();
 })();
