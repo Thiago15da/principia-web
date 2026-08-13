@@ -243,14 +243,20 @@ function filasRegistro(filtro) {
   const ultimaFila = hoja.getLastRow();
   if (ultimaFila < 2) return [];
 
-  // Solo las columnas del parte. getDataRange() arrastra además todo lo que
-  // alguien haya dejado a la derecha en la hoja, y eso viaja en cada lectura.
-  const anchoUtil = Math.min(hoja.getLastColumn(), COLUMNAS_REGISTRO.length);
-  const valores = hoja.getRange(1, 1, ultimaFila, anchoUtil).getValues();
-
-  const encabezados = valores[0];
+  // Los encabezados se leen completos y recién después se acota el ancho de
+  // los datos, hasta la última columna que realmente se usa. Cortar antes de
+  // resolver los índices rompería la búsqueda por nombre —una columna que
+  // quedó más a la derecha simplemente desaparecería del parte, sin aviso—
+  // que es justamente lo que este archivo evita al no trabajar por posición.
+  const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
   const idx = {};
-  COLUMNAS_REGISTRO.forEach(function (c) { idx[c] = indiceColumna(encabezados, c); });
+  var anchoUtil = 1;
+  COLUMNAS_REGISTRO.forEach(function (c) {
+    idx[c] = indiceColumna(encabezados, c);
+    if (idx[c] + 1 > anchoUtil) anchoUtil = idx[c] + 1;
+  });
+
+  const valores = hoja.getRange(1, 1, ultimaFila, anchoUtil).getValues();
   const celda = function (fila, col) { return idx[col] === -1 ? '' : fila[idx[col]]; };
 
   const filas = [];
@@ -346,13 +352,30 @@ function borrarRegistro(datos) {
   return jsonResponse({ ok: true, borradas: aBorrar.length });
 }
 
-/** Chequeo de salud: abrir la URL del Web App en el navegador debe responder ok. */
+/**
+ * Chequeo de salud: abrir la URL del Web App en el navegador debe responder ok.
+ *
+ * Informa además qué columnas tiene el parte diario y cuáles espera. Si
+ * alguien renombra una columna a mano, lo que se cargue en ella se guarda
+ * vacío sin protestar; con esto se ve de una mirada, en vez de tener que
+ * deducirlo desde la pantalla.
+ */
 function doGet() {
+  const hoja = getHojaRegistro();
+  const encabezados = hoja.getLastColumn()
+    ? hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0] : [];
+  const faltan = COLUMNAS_REGISTRO.filter(function (c) {
+    return indiceColumna(encabezados, c) === -1;
+  });
+
   return jsonResponse({
     ok: true,
     servicio: 'RVH PCP',
     hoja_ordenes: getHojaOrdenes().getName(),
-    hoja_registro: CONFIG.HOJA_REGISTRO
+    hoja_registro: CONFIG.HOJA_REGISTRO,
+    columnas: encabezados,
+    columnas_faltantes: faltan,
+    filas_registro: Math.max(0, hoja.getLastRow() - 1)
   });
 }
 
