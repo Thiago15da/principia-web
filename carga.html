@@ -327,7 +327,7 @@
         <td class="num mono"><b>${f.cantidad_moldes}</b></td>
         ${u.kg ? `<td class="num mono">${f.kg_por_molde}</td>
         <td class="num mono"><b>${kg(f.total_kg)}</b></td>` : ''}
-        <td>${esc(f.pieza || '—')}</td>
+        <td>${esc(f.pieza || f.observaciones || '—')}</td>
       </tr>`).join('')}</tbody></table></div>`
       : `<div class="empty">Sin tandas de ${esc(sector)} en esta fecha.</div>`;
   }
