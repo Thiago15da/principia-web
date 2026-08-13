@@ -37,6 +37,46 @@ window.RVH = (function () {
   const PROCESOS = SECTORES;
   const ESTADOS = ['A realizar', 'En proceso', 'Terminado'];
 
+  // Cada sector cuenta lo suyo: en carpintería se hacen modelos, en moldeo y
+  // fundición moldes, y en terminación piezas. Los kilos solo significan algo
+  // donde hay metal de por medio.
+  //
+  // La planilla guarda siempre en las mismas tres columnas
+  // (cantidad_moldes / kg_por_molde / total_kg): lo que cambia es cómo se
+  // llama en pantalla. Los nombres de columna quedaron del sector que se
+  // cargó primero y renombrarlos obligaría a migrar la hoja sin ganar nada.
+  const UNIDADES = {
+    'Carpintería': { sing: 'modelo', plural: 'modelos', kg: false },
+    'Moldeo': { sing: 'molde', plural: 'moldes', kg: true },
+    'Fundición': { sing: 'molde', plural: 'moldes', kg: true },
+    'Terminación': { sing: 'pieza', plural: 'piezas', kg: false }
+  };
+
+  // Cuando se miran los cuatro sectores juntos no hay una unidad común, así
+  // que se habla de "unidades" y los kilos se suman solo donde existen.
+  const UNIDAD_MIXTA = { sing: 'unidad', plural: 'unidades', kg: true, mixta: true };
+
+  const INDICE_UNIDADES = (() => {
+    const idx = {};
+    Object.keys(UNIDADES).forEach(s => {
+      idx[s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()] = UNIDADES[s];
+    });
+    return idx;
+  })();
+
+  /** Cómo se cuenta y se nombra lo que produce un sector. */
+  function unidadDe(sector) {
+    if (!sector) return UNIDAD_MIXTA;
+    return INDICE_UNIDADES[String(sector).normalize('NFD')
+      .replace(/[̀-ͯ]/g, '').trim().toLowerCase()] || UNIDAD_MIXTA;
+  }
+
+  /** "1 molde" / "4 moldes", con el nombre que le corresponde al sector. */
+  function contar(n, sector) {
+    const u = unidadDe(sector);
+    return n.toLocaleString('es-PY') + ' ' + (n === 1 ? u.sing : u.plural);
+  }
+
   // Recorrido productivo de un pedido. Cada fase, al marcarse, estampa su
   // fecha en la columna homónima de la planilla: eso es lo que después
   // permite medir cuánto tardó cada etapa.
@@ -991,6 +1031,9 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     CONFIG,
     PROCESOS,
     SECTORES,
+    UNIDADES,
+    unidadDe,
+    contar,
     sugerirOT,
     ESTADOS,
     FASES,
