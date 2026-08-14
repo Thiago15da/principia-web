@@ -40,6 +40,12 @@
     color:var(--steel);border-radius:2px;font-size:12px;font-weight:600;cursor:pointer}
   .sug button[aria-pressed="true"]{background:var(--steel);color:#fff}
   .filas td{font-size:13px}
+  .mats{display:flex;flex-wrap:wrap;gap:6px}
+  .mats button{padding:8px 12px;border:1px solid var(--rule);background:var(--surface);
+    border-radius:2px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .mats button[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:#fff}
+  .matTag{display:inline-block;padding:1px 7px;border:1px solid var(--rule);border-radius:2px;
+    background:var(--sand);font-size:11px;font-weight:600;white-space:nowrap}
   .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
   .tarj{background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:12px 14px}
   .tarj.act{border-color:var(--steel);box-shadow:inset 3px 0 0 var(--steel)}
@@ -115,6 +121,7 @@
     <b style="font-family:var(--cond);font-size:20px;letter-spacing:.02em">CONTROL DIARIO</b>
     <div style="font-size:11px;color:var(--ink-soft)">Planilla de producción por sector</div>
   </div>
+  <a class="btn ghost" href="asistencia.html">Asistencia</a>
   <a class="btn ghost" href="index.html">Tablero</a>
 </div>
 
@@ -157,6 +164,12 @@
         <span class="lab">Total de kg</span>
         <div class="calc" id="calcKg">—</div>
       </div>
+    </div>
+
+    <!-- Solo fundición: es donde se decide la aleación. -->
+    <div style="margin-bottom:12px" id="celdaMaterial" hidden>
+      <span class="lab">Material colado</span>
+      <div class="mats" id="mats"></div>
     </div>
 
     <div style="margin-bottom:12px">
@@ -250,9 +263,36 @@
     $('#labKg').textContent = 'Kg por ' + u.sing;
     $('#gridCant').style.gridTemplateColumns = u.kg ? '' : '1fr';
 
+    // El material se pregunta solo en fundición: es el único sector donde se
+    // decide una aleación. En los demás la pregunta no tendría respuesta.
+    $('#celdaMaterial').hidden = sector !== 'Fundición';
+    if (sector !== 'Fundición') material = '';
+    pintarMateriales();
+
     if (!u.kg) $('#kg').value = '';
     recalcular();
     return may;
+  }
+
+  // ---------------- material colado ----------------
+  let material = '';
+
+  R.MATERIALES_FUNDICION.forEach(m => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = m;
+    b.addEventListener('click', () => {
+      // Volver a tocar el mismo lo desmarca: el material es opcional y si se
+      // eligió por error tiene que poder soltarse sin recargar.
+      material = material === m ? '' : m;
+      pintarMateriales();
+    });
+    $('#mats').appendChild(b);
+  });
+
+  function pintarMateriales() {
+    $('#mats').querySelectorAll('button').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.textContent === material)));
   }
 
   // ---------------- total en vivo ----------------
@@ -281,6 +321,11 @@
    */
   function nota(f) {
     const partes = [];
+    // El material va primero y visualmente aparte: es un dato clasificado,
+    // no texto libre, y conviene que se distinga de lo que escribió alguien.
+    if (String(f.material || '').trim()) {
+      partes.push('\u0000' + String(f.material).trim());
+    }
     [f.pieza, f.observaciones].forEach(x => {
       const t = String(x == null ? '' : x).trim();
       // Si la planilla tiene una sola columna para las dos cosas, las dos
@@ -288,6 +333,13 @@
       if (t && partes.indexOf(t) === -1) partes.push(t);
     });
     return partes.join(' · ') || '—';
+  }
+
+  /** nota() con el material envuelto en su etiqueta. */
+  function notaHTML(f) {
+    return nota(f).split(' · ').map(t => t.charAt(0) === '\u0000'
+      ? '<span class="matTag">' + esc(t.slice(1)) + '</span>'
+      : esc(t)).join(' ');
   }
 
   function pintar() {
@@ -345,7 +397,7 @@
         <td class="num mono"><b>${f.cantidad_moldes}</b></td>
         ${u.kg ? `<td class="num mono">${f.kg_por_molde}</td>
         <td class="num mono"><b>${kg(f.total_kg)}</b></td>` : ''}
-        <td>${esc(nota(f))}</td>
+        <td>${notaHTML(f)}</td>
       </tr>`).join('')}</tbody></table></div>`
       : `<div class="empty">Sin tandas de ${esc(sector)} en esta fecha.</div>`;
   }
@@ -701,7 +753,7 @@
           <td class="num mono"><b>${f.cantidad_moldes}</b></td>
           ${conKg ? `<td class="num mono">${fkg ? f.kg_por_molde : '—'}</td>
           <td class="num mono"><b>${fkg ? kg(f.total_kg) : '—'}</b></td>` : ''}
-          <td>${esc(nota(f))}</td>
+          <td>${notaHTML(f)}</td>
           <td class="cuando">${esc(cuando(f.creado_en, f.fecha))}</td>
         </tr>`; }).join('')}</tbody></table></div>
       </div>`;
@@ -805,7 +857,7 @@
     // Encabezado neutro: el archivo puede traer los cuatro sectores juntos,
     // y cada uno cuenta una cosa distinta. La columna Sector lo desambigua.
     const cab = ['Fecha', 'Sector', 'Operario', 'Cantidad', 'Unidad', 'Kg por unidad',
-      'Total kg', 'Pieza', 'Observaciones', 'Cargado'];
+      'Total kg', 'Material', 'Pieza', 'Observaciones', 'Cargado'];
     const campo = v => {
       const s = String(v == null ? '' : v);
       return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -816,7 +868,7 @@
       const fu = R.unidadDe(f.sector);
       return [f.fecha, f.sector, f.operario, f.cantidad_moldes, fu.plural,
         fu.kg ? f.kg_por_molde : '', fu.kg ? f.total_kg : '',
-        f.pieza || '', f.observaciones || '', f.creado_en];
+        f.material || '', f.pieza || '', f.observaciones || '', f.creado_en];
     });
     const csv = '﻿' + [cab].concat(filas).map(r => r.map(campo).join(';')).join('\r\n');
 
@@ -884,6 +936,7 @@
       operario: $('#operario').value.trim(),
       cantidad_moldes: cant,
       kg_por_molde: kgU,
+      material: material,
       pieza: $('#pieza').value.trim()
     };
 
@@ -893,11 +946,14 @@
     try {
       const r = await R.registrarCargaDiaria(datos);
       aviso('Cargado: ' + R.contar(cant, sector) +
-        (u.kg ? ' · ' + r.total_kg.toLocaleString('es-PY') + ' kg' : ''), 'ok');
+        (u.kg ? ' · ' + r.total_kg.toLocaleString('es-PY') + ' kg' : '') +
+        (datos.material ? ' · ' + datos.material : ''), 'ok');
 
       // El operario y el sector se mantienen: normalmente carga varias
       // tandas seguidas del mismo turno.
       ['moldes', 'kg', 'pieza'].forEach(id => { $('#' + id).value = ''; });
+      material = '';
+      pintarMateriales();
       recalcular();
       $('#moldes').focus();
       // Una sola relectura: de ella salen tanto el día como el registro.

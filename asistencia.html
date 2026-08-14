@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asistencia · RVH Fundición</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1E353B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RVH Asistencia">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .hoja{max-width:900px;margin:0 auto;padding:18px 14px 90px}
+  .cab{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+  .lab{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:600;margin-bottom:5px}
+  .campo{width:100%;padding:11px 12px;font-size:16px;font-weight:500;background:var(--surface);
+    border:1px solid var(--rule);border-radius:2px;outline:none;font-family:var(--sans)}
+  .campo:focus{border-color:var(--steel);box-shadow:0 0 0 3px rgba(44,74,82,.15)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:14px}
+  .kpi{background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:12px 14px}
+  .kpi .rot{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  .kpi .val{font-family:var(--cond);font-size:28px;font-weight:700;line-height:1.1;margin-top:2px}
+  .kpi .pie{font-size:11px;color:var(--ink-soft);margin-top:1px}
+
+  /* Una fila por persona: el nombre a la izquierda y los estados a la
+     derecha, para que marcar la jornada sea bajar la vista una sola vez. */
+  .lista{background:var(--surface);border:1px solid var(--rule);border-radius:2px;margin-bottom:12px}
+  .perso{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+  .perso:last-child{border-bottom:0}
+  .perso .nom{flex:1;min-width:130px;font-weight:600;font-size:14px;line-height:1.2}
+  .perso .nom small{display:block;font-weight:400;font-size:11px;color:var(--ink-soft)}
+  .perso.sinMarcar{background:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(199,119,0,.06) 6px,rgba(199,119,0,.06) 12px)}
+
+  .ests{display:flex;gap:4px}
+  .ests button{width:38px;height:34px;border:1px solid var(--rule);background:var(--surface);
+    border-radius:2px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--sans);
+    color:var(--ink-soft);padding:0}
+  .ests button[aria-pressed="true"]{color:#fff;border-color:transparent}
+
+  .leyenda{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin-bottom:12px}
+  .leyenda span{display:flex;align-items:center;gap:5px}
+  .leyenda i{width:11px;height:11px;border-radius:2px;display:block}
+
+  .guardarBar{position:sticky;bottom:0;z-index:15;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    background:var(--steel-dk);color:#fff;padding:11px 14px;border-radius:2px;font-size:13.5px}
+  .guardarBar b{font-family:var(--mono)}
+  .guardarBar .btn{padding:9px 16px;font-size:13.5px}
+
+  .panel{background:var(--surface);border:1px solid var(--rule);border-radius:2px;
+    padding:14px 16px;margin-bottom:14px}
+  .panel h3{font-family:var(--cond);font-size:15px;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;margin:0 0 2px}
+  .panel .sub{font-size:11.5px;color:var(--ink-soft);margin-bottom:12px}
+
+  /* Calendario del mes: una fila por persona, una celda por día. Es la
+     misma forma que la planilla de papel, que es como ya la leen. */
+  .mesbox{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .mes{border-collapse:separate;border-spacing:2px;font-size:11px}
+  .mes th{font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);font-weight:600;
+    text-align:center;padding:0;background:none;position:static;border:0}
+  .mes th.who{text-align:left;min-width:132px;padding-right:6px}
+  .mes td{padding:0;border:0}
+  .mes .who{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+  /* La celda lleva la inicial del estado además del color.
+     Rojo y verde son justo el par que no distingue un daltónico (ΔE 8.7 en
+     deuteranopía, apenas sobre el piso), y acero y neutro leen casi como
+     gris en 16px. La letra va solo en las excepciones: "Presente" es la
+     enorme mayoría y llenar la grilla de P la volvería ilegible. */
+  .mes .cel{width:16px;height:16px;border-radius:2px;background:var(--sand);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:9px;font-weight:700;color:#fff;line-height:1}
+  .mes .fds{opacity:.45}
+  .mes .pct{font-family:var(--mono);font-size:11px;font-weight:600;padding-left:8px;white-space:nowrap}
+
+  .rank{display:grid;gap:7px}
+  .rankFila{display:grid;grid-template-columns:minmax(90px,1.2fr) 3fr auto;gap:9px;align-items:center;font-size:12.5px}
+  .rankFila .nom{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rankFila .via{background:var(--sand);border-radius:2px;height:11px;overflow:hidden}
+  .rankFila .via i{display:block;height:100%;background:var(--verde)}
+  .rankFila .n{font-family:var(--mono);font-size:12px;font-weight:600}
+
+  .altaGrid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+  .bajaLista{display:grid;gap:6px;margin-top:10px}
+  .bajaFila{display:flex;align-items:center;gap:10px;font-size:13px;padding:7px 10px;
+    border:1px solid var(--rule);border-radius:2px;flex-wrap:wrap}
+  .bajaFila .nom{flex:1;min-width:120px;font-weight:600}
+  .bajaFila.inactivo{opacity:.6;background:var(--sand)}
+  .bajaFila .btn{padding:5px 11px;font-size:12px}
+
+  @media (max-width:640px){
+    .altaGrid{grid-template-columns:1fr}
+    .ests button{width:34px;height:36px}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar" style="position:sticky;top:0;z-index:20">
+  <img src="IMG_8258.png" alt="RVH" style="height:38px;width:auto;object-fit:contain" onerror="this.style.display='none'">
+  <div style="flex:1;min-width:120px">
+    <b style="font-family:var(--cond);font-size:20px;letter-spacing:.02em">ASISTENCIA</b>
+    <div style="font-size:11px;color:var(--ink-soft)">Control diario de personal</div>
+  </div>
+  <a class="btn ghost" href="carga.html">Producción</a>
+  <a class="btn ghost" href="index.html">Tablero</a>
+</div>
+
+<div class="hoja">
+
+  <div id="aviso"></div>
+
+  <div class="cab">
+    <div>
+      <span class="lab">Fecha</span>
+      <input id="fecha" type="date" class="campo" style="width:auto">
+    </div>
+    <button type="button" class="btn ghost" id="todosPresentes">Marcar todos presentes</button>
+  </div>
+
+  <div id="resumen"></div>
+  <div class="leyenda" id="leyenda"></div>
+  <div id="lista"></div>
+
+  <div class="guardarBar" id="guardarBar">
+    <span id="estadoJornada">—</span>
+    <span style="flex:1"></span>
+    <button type="button" class="btn" id="guardar">Guardar jornada</button>
+  </div>
+
+  <h2 class="sec">Resumen del período</h2>
+  <div class="regbar" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:13px">
+    <select id="rango" class="campo" style="width:auto;padding:7px 10px;font-size:13px">
+      <option value="30" selected>Últimos 30 días</option>
+      <option value="60">Últimos 60 días</option>
+      <option value="180">Últimos 6 meses</option>
+    </select>
+    <button type="button" class="btn ghost" id="exportar" style="padding:7px 12px;font-size:12.5px">Exportar CSV</button>
+  </div>
+  <div id="analisis"></div>
+
+  <h2 class="sec">Personal</h2>
+  <div class="panel">
+    <h3>Agregar</h3>
+    <div class="sub">Un nombre por línea. Se puede pegar la lista entera de una vez;
+      si alguien ya está cargado, se actualiza en lugar de duplicarse.</div>
+    <div class="altaGrid">
+      <div>
+        <label class="lab" for="nuevos">Nombre y apellido</label>
+        <textarea id="nuevos" class="campo" rows="3" placeholder="Juan Pérez&#10;María González"></textarea>
+      </div>
+      <div>
+        <label class="lab" for="nuevoSector">Sector (opcional)</label>
+        <input id="nuevoSector" class="campo" list="sectores" placeholder="Ej: Moldeo" autocomplete="off">
+        <datalist id="sectores"></datalist>
+      </div>
+      <button type="button" class="btn" id="agregar" style="padding:11px 18px">Agregar</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Altas y bajas</h3>
+    <div class="sub">Dar de baja saca a la persona de la carga diaria, pero no borra su
+      historial: la asistencia de los meses anteriores se sigue viendo.</div>
+    <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer">
+      <input type="checkbox" id="verBajas"> Ver también las bajas
+    </label>
+    <div class="bajaLista" id="bajaLista"></div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const R = window.RVH;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  let empleados = [];     // los que están a la vista (activos, salvo que se pidan las bajas)
+  let todosLosEmp = [];   // activos y bajas, para el panel de personal
+  let historial = [];     // asistencia del rango leído
+  let desdeHist = '';
+  let marcas = {};        // clave de persona -> estado, para la fecha elegida
+  let pedido = 0;
+
+  const DIAS_ES = ['do', 'lu', 'ma', 'mi', 'ju', 'vi', 'sa'];
+  const MESES_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  $('#fecha').value = R.hoyISO();
+  R.SECTORES.forEach(s => {
+    const o = document.createElement('option'); o.value = s; $('#sectores').appendChild(o);
+  });
+
+  /**
+   * Identidad de una persona dentro del sistema.
+   *
+   * Se prefiere el legajo, pero la lista de papel no siempre lo trae, así que
+   * el nombre normalizado sirve de respaldo. Tiene que dar igual acá y en el
+   * script, o una marca guardada no volvería a encontrar a su dueño.
+   */
+  const claveDe = p => String(p.legajo || '').trim() || R.normalize(p.nombre);
+
+  // ---------------- jornada ----------------
+
+  function pintarLeyenda() {
+    $('#leyenda').innerHTML = R.ESTADOS_ASISTENCIA.map(e =>
+      `<span><i style="background:${e.color}"></i>${esc(e.corto)} · ${esc(e.nombre)}</span>`).join('');
+  }
+
+  function pintarLista() {
+    if (!empleados.length) {
+      $('#lista').innerHTML = '<div class="empty"><b>Todavía no hay personal cargado</b>' +
+        'Agregá la lista más abajo, en Personal.</div>';
+      $('#guardarBar').hidden = true;
+      return;
+    }
+    $('#guardarBar').hidden = false;
+
+    $('#lista').innerHTML = '<div class="lista">' + empleados.map(p => {
+      const k = claveDe(p);
+      const actual = marcas[k] || '';
+      return `<div class="perso ${actual ? '' : 'sinMarcar'}" data-k="${esc(k)}">
+        <div class="nom">${esc(p.nombre)}${p.sector ? '<small>' + esc(p.sector) + '</small>' : ''}</div>
+        <div class="ests">${R.ESTADOS_ASISTENCIA.map(e => `<button type="button"
+          data-k="${esc(k)}" data-estado="${esc(e.nombre)}" title="${esc(e.nombre)}"
+          aria-pressed="${actual === e.nombre}"
+          style="${actual === e.nombre ? 'background:' + e.color : ''}">${esc(e.corto)}</button>`).join('')}</div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
+  function pintarResumen() {
+    const total = empleados.length;
+    const cuenta = {};
+    R.ESTADOS_ASISTENCIA.forEach(e => { cuenta[e.nombre] = 0; });
+    var marcados = 0;
+    empleados.forEach(p => {
+      const m = marcas[claveDe(p)];
+      if (m) { marcados++; if (cuenta[m] != null) cuenta[m]++; }
+    });
+
+    const presentes = cuenta['Presente'] || 0;
+    const pct = marcados ? Math.round(presentes / marcados * 100) : 0;
+    const faltan = total - marcados;
+
+    $('#resumen').innerHTML = `<div class="kpis">
+      <div class="kpi"><div class="rot">Presentes</div>
+        <div class="val" style="color:var(--verde)">${presentes}</div>
+        <div class="pie">de ${total} en la lista</div></div>
+      <div class="kpi"><div class="rot">Ausentes</div>
+        <div class="val" style="color:${cuenta['Ausente'] ? 'var(--rojo)' : 'var(--ink)'}">${cuenta['Ausente'] || 0}</div>
+        <div class="pie">${(cuenta['Permiso'] || 0) + (cuenta['Reposo'] || 0) + (cuenta['Vacaciones'] || 0)} con permiso, reposo o vacaciones</div></div>
+      <div class="kpi"><div class="rot">Asistencia</div>
+        <div class="val">${marcados ? pct + '%' : '—'}</div>
+        <div class="pie">${marcados ? 'sobre lo marcado' : 'sin marcar todavía'}</div></div>
+      <div class="kpi"><div class="rot">Sin marcar</div>
+        <div class="val" style="color:${faltan ? 'var(--ambar)' : 'var(--verde)'}">${faltan}</div>
+        <div class="pie">${faltan ? 'faltan cargar' : 'jornada completa'}</div></div>
+    </div>`;
+
+    $('#estadoJornada').innerHTML = faltan
+      ? `Faltan <b>${faltan}</b> de <b>${total}</b>`
+      : `<b>${total}</b> personas marcadas`;
+  }
+
+  function refrescarJornada() { pintarLista(); pintarResumen(); }
+
+  // Delegado: la lista se vuelve a dibujar entera en cada cambio de fecha.
+  $('#lista').addEventListener('click', e => {
+    const b = e.target.closest('button[data-estado]');
+    if (!b) return;
+    const k = b.dataset.k;
+    // Volver a tocar el mismo estado lo desmarca, por si se apretó de más.
+    marcas[k] = marcas[k] === b.dataset.estado ? '' : b.dataset.estado;
+    if (!marcas[k]) delete marcas[k];
+    refrescarJornada();
+  });
+
+  $('#todosPresentes').addEventListener('click', () => {
+    // Solo rellena lo que está en blanco: el que ya se marcó ausente a mano
+    // no debería volver a presente por apretar el atajo.
+    empleados.forEach(p => { const k = claveDe(p); if (!marcas[k]) marcas[k] = 'Presente'; });
+    refrescarJornada();
+  });
+
+  $('#guardar').addEventListener('click', async () => {
+    const lista = empleados
+      .filter(p => marcas[claveDe(p)])
+      .map(p => ({ legajo: p.legajo || '', nombre: p.nombre, estado: marcas[claveDe(p)] }));
+
+    if (!lista.length) return aviso('No hay nadie marcado todavía.', 'err');
+
+    $('#guardar').disabled = true;
+    $('#guardar').textContent = 'Guardando...';
+    try {
+      const r = await R.guardarAsistencia($('#fecha').value, lista);
+      aviso('Jornada guardada: ' + lista.length + ' persona' + (lista.length === 1 ? '' : 's') +
+        (r.actualizadas ? ' (' + r.actualizadas + ' corregida' + (r.actualizadas === 1 ? '' : 's') + ')' : ''), 'ok');
+      await traerHistorial();
+    } catch (err) {
+      aviso(err.message || 'No se pudo guardar.', 'err');
+    } finally {
+      $('#guardar').disabled = false;
+      $('#guardar').textContent = 'Guardar jornada';
+    }
+  });
+
+  // ---------------- datos ----------------
+
+  function isoHaceDias(dias) {
+    const d = new Date();
+    d.setDate(d.getDate() - dias);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+      '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  async function traerEmpleados() {
+    todosLosEmp = await R.leerEmpleados(true);
+    empleados = todosLosEmp.filter(e => e.activo);
+    pintarPersonal();
+  }
+
+  async function traerHistorial() {
+    const desde = isoHaceDias(Number($('#rango').value) || 30);
+    const mio = ++pedido;
+    try {
+      const filas = await R.leerAsistencia(desde, '');
+      if (mio !== pedido) return;
+      historial = filas;
+      desdeHist = desde;
+      sincronizarFecha();
+      pintarAnalisis();
+    } catch (err) {
+      if (mio !== pedido) return;
+      $('#analisis').innerHTML = '<div class="err">No se pudo leer la asistencia: ' +
+        esc(err.message) + ' <button type="button" id="reintentar">Reintentar</button></div>';
+      $('#reintentar').addEventListener('click', traerHistorial);
+    }
+  }
+
+  /** Carga en el formulario lo que ya estuviera guardado de esa fecha. */
+  function sincronizarFecha() {
+    const f = $('#fecha').value;
+    marcas = {};
+    historial.filter(a => a.fecha === f).forEach(a => {
+      marcas[String(a.legajo || '').trim() || R.normalize(a.nombre)] = a.estado;
+    });
+    refrescarJornada();
+  }
+
+  $('#fecha').addEventListener('change', async () => {
+    // Si la fecha cae fuera de lo ya leído hay que ir a buscarla.
+    if (desdeHist && $('#fecha').value >= desdeHist) return sincronizarFecha();
+    try {
+      historial = await R.leerAsistencia($('#fecha').value, $('#fecha').value);
+      desdeHist = '';
+      sincronizarFecha();
+    } catch (err) {
+      aviso('No se pudo leer esa fecha: ' + err.message, 'warn');
+    }
+  });
+
+  $('#rango').addEventListener('change', traerHistorial);
+
+  // ---------------- análisis del período ----------------
+
+  function pintarAnalisis() {
+    if (!historial.length) {
+      $('#analisis').innerHTML = '<div class="empty">Todavía no hay jornadas guardadas en este período.</div>';
+      return;
+    }
+
+    const fechas = Array.from(new Set(historial.map(a => a.fecha))).sort();
+    const porPersona = new Map();
+    historial.forEach(a => {
+      const k = String(a.legajo || '').trim() || R.normalize(a.nombre);
+      var g = porPersona.get(k);
+      if (!g) { g = { nombre: a.nombre, dias: {}, presente: 0, total: 0 }; porPersona.set(k, g); }
+      g.dias[a.fecha] = a.estado;
+      g.total++;
+      if (a.estado === 'Presente') g.presente++;
+      if (a.nombre) g.nombre = a.nombre;
+    });
+
+    const gente = Array.from(porPersona.values())
+      .sort((a, b) => (b.presente / (b.total || 1)) - (a.presente / (a.total || 1)));
+
+    // Se muestran los últimos 31 días con carga: un mes entra en pantalla y
+    // más que eso obliga a desplazar sin que se gane nada.
+    const cols = fechas.slice(-31);
+    const color = e => { const x = R.estadoAsistencia(e); return x ? x.color : 'var(--sand)'; };
+
+    const jornadas = fechas.length;
+    const presenciasTotales = historial.filter(a => a.estado === 'Presente').length;
+    const pctGeneral = historial.length ? Math.round(presenciasTotales / historial.length * 100) : 0;
+    const ausencias = historial.filter(a => a.estado === 'Ausente').length;
+
+    $('#analisis').innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><div class="rot">Jornadas</div>
+          <div class="val">${jornadas}</div><div class="pie">días con carga</div></div>
+        <div class="kpi"><div class="rot">Asistencia</div>
+          <div class="val" style="color:var(--verde)">${pctGeneral}%</div>
+          <div class="pie">del período</div></div>
+        <div class="kpi"><div class="rot">Ausencias</div>
+          <div class="val" style="color:${ausencias ? 'var(--rojo)' : 'var(--ink)'}">${ausencias}</div>
+          <div class="pie">en todo el período</div></div>
+        <div class="kpi"><div class="rot">Personas</div>
+          <div class="val">${gente.length}</div><div class="pie">con registro</div></div>
+      </div>
+
+      <div class="panel">
+        <h3>Calendario</h3>
+        <div class="sub">Una celda por persona y día${
+          fechas.length > cols.length ? ' · últimos 31 días con carga' : ''}</div>
+        <div class="mesbox"><table class="mes"><thead><tr>
+          <th class="who"></th>
+          ${cols.map(f => { const d = R.parseFecha(f); const fds = d && (d.getDay() === 0 || d.getDay() === 6);
+            return `<th class="${fds ? 'fds' : ''}">${d ? d.getDate() : ''}</th>`; }).join('')}
+          <th></th>
+        </tr><tr>
+          <th class="who"></th>
+          ${cols.map(f => { const d = R.parseFecha(f); const fds = d && (d.getDay() === 0 || d.getDay() === 6);
+            return `<th class="${fds ? 'fds' : ''}">${d ? DIAS_ES[d.getDay()] : ''}</th>`; }).join('')}
+          <th></th>
+        </tr></thead><tbody>${gente.map(g => `<tr>
+          <td class="who" title="${esc(g.nombre)}">${esc(g.nombre)}</td>
+          ${cols.map(f => { const e = g.dias[f];
+            const est = e ? R.estadoAsistencia(e) : null;
+            const marca = est && est.nombre !== 'Presente' ? esc(est.corto) : '';
+            return `<td><span class="cel" style="background:${e ? color(e) : 'var(--sand)'}"
+              title="${esc((R.parseFecha(f) ? R.formatFecha(R.parseFecha(f)) : f) + ' · ' + (e || 'sin marcar'))}"
+              >${marca}</span></td>`;
+          }).join('')}
+          <td class="pct">${Math.round(g.presente / (g.total || 1) * 100)}%</td>
+        </tr>`).join('')}</tbody></table></div>
+      </div>
+
+      <div class="panel">
+        <h3>Asistencia por persona</h3>
+        <div class="sub">Porcentaje de jornadas presentes en el período</div>
+        <div class="rank">${gente.map(g => {
+          const pct = Math.round(g.presente / (g.total || 1) * 100);
+          return `<div class="rankFila">
+            <span class="nom" title="${esc(g.nombre)}">${esc(g.nombre)}</span>
+            <span class="via"><i style="width:${pct}%"></i></span>
+            <span class="n">${pct}% · ${g.presente}/${g.total}</span>
+          </div>`;
+        }).join('')}</div>
+      </div>`;
+  }
+
+  $('#exportar').addEventListener('click', () => {
+    if (!historial.length) return aviso('No hay nada para exportar en este período.', 'warn');
+    const campo = v => {
+      const s = String(v == null ? '' : v);
+      return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const filas = historial.map(a => [a.fecha, a.legajo, a.nombre, a.estado, a.notas || '']);
+    const csv = '﻿' + [['Fecha', 'Legajo', 'Nombre', 'Estado', 'Notas']]
+      .concat(filas).map(r => r.map(campo).join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'rvh-asistencia-' + R.hoyISO() + '.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // ---------------- personal ----------------
+
+  function pintarPersonal() {
+    const verBajas = $('#verBajas').checked;
+    const lista = verBajas ? todosLosEmp : todosLosEmp.filter(e => e.activo);
+    if (!lista.length) {
+      $('#bajaLista').innerHTML = '<div class="empty">Sin personal cargado todavía.</div>';
+      return;
+    }
+    $('#bajaLista').innerHTML = lista.map(e => `<div class="bajaFila ${e.activo ? '' : 'inactivo'}">
+      <span class="nom">${esc(e.nombre)}</span>
+      ${e.sector ? '<span style="font-size:11.5px;color:var(--ink-soft)">' + esc(e.sector) + '</span>' : ''}
+      ${e.activo ? '' : '<span style="font-size:11.5px;color:var(--ink-soft)">baja ' + esc(e.hasta || '') + '</span>'}
+      <button type="button" class="btn ${e.activo ? 'warn' : 'ghost'}"
+        data-nombre="${esc(e.nombre)}" data-legajo="${esc(e.legajo || '')}"
+        data-accion="${e.activo ? 'baja' : 'alta'}">${e.activo ? 'Dar de baja' : 'Reincorporar'}</button>
+    </div>`).join('');
+  }
+
+  $('#verBajas').addEventListener('change', pintarPersonal);
+
+  $('#bajaLista').addEventListener('click', async e => {
+    const b = e.target.closest('button[data-accion]');
+    if (!b) return;
+    const esBaja = b.dataset.accion === 'baja';
+    if (esBaja && !confirm('Dar de baja a ' + b.dataset.nombre +
+      '. Va a dejar de aparecer en la carga diaria, pero su historial se conserva. ¿Confirmás?')) return;
+
+    b.disabled = true;
+    try {
+      await R.bajaEmpleado(b.dataset.legajo, b.dataset.nombre, { reingreso: !esBaja });
+      aviso(b.dataset.nombre + (esBaja ? ' dado de baja.' : ' reincorporado.'), 'ok');
+      await traerEmpleados();
+      refrescarJornada();
+    } catch (err) {
+      aviso(err.message || 'No se pudo actualizar.', 'err');
+    } finally {
+      b.disabled = false;
+    }
+  });
+
+  $('#agregar').addEventListener('click', async () => {
+    const nombres = $('#nuevos').value.split('\n')
+      .map(x => x.trim()).filter(Boolean);
+    if (!nombres.length) return aviso('Escribí al menos un nombre.', 'err');
+
+    const sector = $('#nuevoSector').value.trim();
+    $('#agregar').disabled = true;
+    $('#agregar').textContent = 'Agregando...';
+    try {
+      const r = await R.altaEmpleado(nombres.map(n => ({ nombre: n, sector: sector })));
+      aviso('Personal actualizado: ' + r.altas + ' alta' + (r.altas === 1 ? '' : 's') +
+        (r.actualizados ? ' y ' + r.actualizados + ' actualizado' + (r.actualizados === 1 ? '' : 's') : ''), 'ok');
+      $('#nuevos').value = '';
+      await traerEmpleados();
+      refrescarJornada();
+    } catch (err) {
+      aviso(err.message || 'No se pudo agregar.', 'err');
+    } finally {
+      $('#agregar').disabled = false;
+      $('#agregar').textContent = 'Agregar';
+    }
+  });
+
+  function aviso(msg, tipo) {
+    const col = { ok: 'var(--verde)', err: 'var(--rojo)', warn: 'var(--ambar)' }[tipo] || 'var(--verde)';
+    $('#aviso').innerHTML = `<div style="border:1px solid ${col};color:${col};background:var(--surface);
+      padding:10px 14px;border-radius:2px;font-size:13.5px;font-weight:600;margin-bottom:14px">${esc(msg)}</div>`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ---------------- init ----------------
+  pintarLeyenda();
+  $('#lista').innerHTML = '<div class="empty">Cargando personal...</div>';
+
+  // Las dos lecturas van juntas: son hojas distintas y ya no compiten por el
+  // candado del script, así que en paralelo tardan lo que la más lenta.
+  Promise.all([
+    traerEmpleados().catch(err => {
+      $('#lista').innerHTML = '<div class="err">No se pudo leer el personal: ' + esc(err.message) + '</div>';
+    }),
+    traerHistorial()
+  ]).then(refrescarJornada);
+})();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js').catch(e => console.error('SW:', e));
+    });
+  }
+</script>
+</body>
+</html>

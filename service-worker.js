@@ -1,11 +1,12 @@
 'use strict';
 
-const CACHE_NAME = 'rvh-pcp-static-v7';
+const CACHE_NAME = 'rvh-pcp-static-v8';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './estilos.css',
   './carga.html',
+  './asistencia.html',
   './shared.js',
   './manifest.json',
   './IMG_8258.png',
