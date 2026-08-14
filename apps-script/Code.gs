@@ -15,15 +15,17 @@
 // Se sube al cambiar el contrato con la web. La app lo compara y avisa si
 // la planilla quedó con una versión vieja publicada: sin esto, un script
 // desactualizado da errores que no se parecen en nada a la causa real.
-const VERSION = 7;
+const VERSION = 8;
 
 const CONFIG = {
   // gid de la pestaña de órdenes de trabajo — es el mismo número que ya
   // aparece en la URL del CSV publicado (…&gid=296832343&…).
   GID_ORDENES: 296832343,
 
-  // Nombre de la pestaña del parte diario. Se crea sola si no existe.
+  // Pestañas del sistema. Todas se crean solas si no existen.
   HOJA_REGISTRO: 'registro_diario',
+  HOJA_EMPLEADOS: 'empleados',
+  HOJA_ASISTENCIA: 'asistencia',
 
   // Clave compartida entre la web y este script. NO es un login de usuario
   // (el sistema no tiene usuarios); solo evita que alguien que encuentre la
@@ -42,7 +44,24 @@ const CONFIG = {
 // sabe el número de OT, y no se le va a exigir.
 const COLUMNAS_REGISTRO = [
   'id', 'fecha', 'sector', 'operario', 'cantidad_moldes', 'kg_por_molde',
-  'total_kg', 'pieza', 'id_ot', 'piezas', 'observaciones', 'creado_en'
+  'total_kg', 'material', 'pieza', 'id_ot', 'piezas', 'observaciones', 'creado_en'
+];
+
+// Legajo, nombre y estado de cada persona. `activo` en FALSE es una baja: la
+// fila no se borra nunca, porque la asistencia vieja tiene que seguir
+// pudiendo mostrar de quién era.
+const COLUMNAS_EMPLEADOS = ['legajo', 'nombre', 'sector', 'activo', 'desde', 'hasta', 'notas'];
+
+// Una fila por persona y por día. `estado` es lo que se marca en la página.
+const COLUMNAS_ASISTENCIA = ['fecha', 'legajo', 'nombre', 'estado', 'notas', 'creado_en'];
+
+const ESTADOS_ASISTENCIA = ['Presente', 'Ausente', 'Permiso', 'Reposo', 'Vacaciones'];
+
+// Aleaciones que se cuelan. Se guarda el texto tal cual para que la planilla
+// se lea sola, y la lista vive acá para que la página y el script no se
+// desincronicen.
+const MATERIALES_FUNDICION = [
+  'Hierro gris', 'Nodular', 'Acero', 'Acero al manganeso', 'Bronce', 'Aluminio'
 ];
 
 // Nombres alternativos aceptados para una columna del parte.
@@ -123,15 +142,15 @@ function getHojaOrdenes() {
  * por posición: así una planilla creada con una versión anterior del
  * script sigue funcionando y solo se le suman las columnas nuevas.
  */
-function getHojaRegistro() {
+function getHojaCon(nombre, columnas) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  var hoja = ss.getSheetByName(CONFIG.HOJA_REGISTRO);
+  var hoja = ss.getSheetByName(nombre);
 
   if (!hoja) {
-    hoja = ss.insertSheet(CONFIG.HOJA_REGISTRO);
-    hoja.appendRow(COLUMNAS_REGISTRO);
+    hoja = ss.insertSheet(nombre);
+    hoja.appendRow(columnas);
     hoja.setFrozenRows(1);
-    hoja.getRange(1, 1, 1, COLUMNAS_REGISTRO.length).setFontWeight('bold');
+    hoja.getRange(1, 1, 1, columnas.length).setFontWeight('bold');
     return hoja;
   }
 
@@ -142,7 +161,7 @@ function getHojaRegistro() {
   // Con alias: si la hoja ya tiene la columna con otro nombre, se respeta el
   // que está en vez de agregar una segunda al lado. Duplicarla era peor que
   // no tenerla: se escribía en una y se leía de la otra.
-  COLUMNAS_REGISTRO.forEach(function (col) {
+  columnas.forEach(function (col) {
     if (indiceColumnaCon(encabezados, col) === -1) {
       encabezados.push(col);
       hoja.getRange(1, encabezados.length).setValue(col).setFontWeight('bold');
@@ -150,6 +169,57 @@ function getHojaRegistro() {
   });
 
   return hoja;
+}
+
+function getHojaRegistro() {
+  return getHojaCon(CONFIG.HOJA_REGISTRO, COLUMNAS_REGISTRO);
+}
+
+function getHojaEmpleados() {
+  return getHojaCon(CONFIG.HOJA_EMPLEADOS, COLUMNAS_EMPLEADOS);
+}
+
+function getHojaAsistencia() {
+  return getHojaCon(CONFIG.HOJA_ASISTENCIA, COLUMNAS_ASISTENCIA);
+}
+
+/**
+ * Lee una hoja entera devolviendo objetos por nombre de columna.
+ * Mismo criterio que filasRegistro, pero genérico.
+ */
+function filasDe(hoja, columnas) {
+  const ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2) return [];
+
+  const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+  const idx = {};
+  var ancho = 1;
+  columnas.forEach(function (c) {
+    idx[c] = indiceColumnaCon(encabezados, c);
+    if (idx[c] + 1 > ancho) ancho = idx[c] + 1;
+  });
+
+  const valores = hoja.getRange(1, 1, ultimaFila, ancho).getValues();
+  const filas = [];
+  for (var i = 1; i < valores.length; i++) {
+    const obj = { _fila: i + 1 };
+    columnas.forEach(function (c) {
+      obj[c] = idx[c] === -1 ? '' : valores[i][idx[c]];
+    });
+    filas.push(obj);
+  }
+  return filas;
+}
+
+/** Escribe un objeto en una fila, ubicando cada valor por su encabezado. */
+function escribirEn(hoja, numeroFila, columnas, datos) {
+  const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+  columnas.forEach(function (campo) {
+    const i = indiceColumnaCon(encabezados, campo);
+    if (i !== -1 && datos[campo] !== undefined) {
+      hoja.getRange(numeroFila, i + 1).setValue(datos[campo]);
+    }
+  });
 }
 
 /**
@@ -320,6 +390,7 @@ function filasRegistro(filtro) {
       cantidad_moldes: Number(celda(valores[i], 'cantidad_moldes')) || 0,
       kg_por_molde: Number(celda(valores[i], 'kg_por_molde')) || 0,
       total_kg: Number(celda(valores[i], 'total_kg')) || 0,
+      material: String(celda(valores[i], 'material') || ''),
       pieza: String(celda(valores[i], 'pieza') || ''),
       observaciones: String(celda(valores[i], 'observaciones') || ''),
       creado_en: fechaHoraTexto(celda(valores[i], 'creado_en'))
@@ -396,6 +467,242 @@ function borrarRegistro(datos) {
   return jsonResponse({ ok: true, borradas: aBorrar.length });
 }
 
+// ---------------------------------------------------------------------------
+// Empleados
+// ---------------------------------------------------------------------------
+
+/**
+ * Personal cargado. Por defecto solo el que está activo: la página de carga
+ * no tiene por qué ofrecer a alguien que ya no trabaja acá.
+ */
+function leerEmpleados(datos) {
+  const todos = String(datos.todos || '') === 'si';
+  const filas = filasDe(getHojaEmpleados(), COLUMNAS_EMPLEADOS)
+    .filter(function (e) { return String(e.nombre || '').trim(); })
+    .map(function (e) {
+      return {
+        legajo: String(e.legajo || '').trim(),
+        nombre: String(e.nombre || '').trim(),
+        sector: String(e.sector || '').trim(),
+        activo: String(e.activo).toUpperCase() !== 'FALSE' && e.activo !== false,
+        desde: fechaTexto(e.desde),
+        hasta: fechaTexto(e.hasta),
+        notas: String(e.notas || '').trim()
+      };
+    });
+
+  return jsonResponse({
+    ok: true,
+    empleados: todos ? filas : filas.filter(function (e) { return e.activo; })
+  });
+}
+
+/**
+ * Alta de personal. Acepta varios de una porque la primera carga es la lista
+ * entera del taller, y darla de a uno sería media hora de tipeo.
+ *
+ * Si el legajo ya existe se actualiza en lugar de duplicar: volver a pegar la
+ * lista no tiene que dejar a nadie dos veces.
+ */
+function altaEmpleado(datos) {
+  const entrada = datos.empleados || [datos];
+  const hoja = getHojaEmpleados();
+  const existentes = filasDe(hoja, COLUMNAS_EMPLEADOS);
+  const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  var altas = 0, updates = 0;
+
+  entrada.forEach(function (e) {
+    const nombre = String(e.nombre || '').trim();
+    if (!nombre) return;
+    const legajo = String(e.legajo || '').trim();
+
+    // Se busca por legajo, y si no vino, por nombre: la lista de papel no
+    // siempre trae número y aun así no se debe duplicar a la persona.
+    var previo = null;
+    for (var i = 0; i < existentes.length; i++) {
+      const mismoLegajo = legajo && String(existentes[i].legajo || '').trim() === legajo;
+      const mismoNombre = normalizar(existentes[i].nombre) === normalizar(nombre);
+      if (mismoLegajo || (!legajo && mismoNombre)) { previo = existentes[i]; break; }
+    }
+
+    const fila = {
+      legajo: legajo,
+      nombre: nombre,
+      sector: String(e.sector || '').trim(),
+      activo: true,
+      desde: previo && previo.desde ? fechaTexto(previo.desde) : hoy,
+      hasta: '',
+      notas: String(e.notas || '').trim()
+    };
+
+    if (previo) {
+      escribirEn(hoja, previo._fila, COLUMNAS_EMPLEADOS, fila);
+      updates++;
+    } else {
+      const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+      const nueva = [];
+      for (var c = 0; c < encabezados.length; c++) nueva.push('');
+      COLUMNAS_EMPLEADOS.forEach(function (campo) {
+        const j = indiceColumnaCon(encabezados, campo);
+        if (j !== -1) nueva[j] = fila[campo];
+      });
+      hoja.appendRow(nueva);
+      existentes.push({ _fila: hoja.getLastRow(), legajo: legajo, nombre: nombre });
+      altas++;
+    }
+  });
+
+  SpreadsheetApp.flush();
+  return jsonResponse({ ok: true, altas: altas, actualizados: updates });
+}
+
+/**
+ * Baja de personal. No borra la fila: la marca inactiva y le pone fecha de
+ * salida. La asistencia de los meses anteriores tiene que seguir diciendo de
+ * quién era, y borrarlo la dejaría con legajos huérfanos.
+ */
+function bajaEmpleado(datos) {
+  const legajo = String(datos.legajo || '').trim();
+  const nombre = String(datos.nombre || '').trim();
+  if (!legajo && !nombre) return jsonResponse({ ok: false, error: 'No se indicó a quién dar de baja.' });
+
+  const hoja = getHojaEmpleados();
+  const filas = filasDe(hoja, COLUMNAS_EMPLEADOS);
+  const hoy = String(datos.hasta || '').trim() ||
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  // `reingreso` deshace una baja hecha por error, sin tener que ir a la hoja.
+  const reingreso = String(datos.reingreso || '') === 'si';
+
+  for (var i = 0; i < filas.length; i++) {
+    const coincide = legajo
+      ? String(filas[i].legajo || '').trim() === legajo
+      : normalizar(filas[i].nombre) === normalizar(nombre);
+    if (!coincide) continue;
+
+    escribirEn(hoja, filas[i]._fila, COLUMNAS_EMPLEADOS, {
+      activo: reingreso ? true : false,
+      hasta: reingreso ? '' : hoy,
+      notas: String(datos.notas || filas[i].notas || '').trim()
+    });
+    SpreadsheetApp.flush();
+    return jsonResponse({ ok: true, nombre: String(filas[i].nombre || ''), reingreso: reingreso });
+  }
+
+  return jsonResponse({ ok: false, error: 'No se encontró a esa persona en la lista.' });
+}
+
+// ---------------------------------------------------------------------------
+// Asistencia
+// ---------------------------------------------------------------------------
+
+/** Asistencia desde una fecha, más nueva primero. */
+function leerAsistencia(datos) {
+  var desde = String(datos.desde || '').trim();
+  if (!desde) {
+    const d = new Date();
+    d.setDate(d.getDate() - 60);
+    desde = Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  const hasta = String(datos.hasta || '').trim();
+
+  const filas = filasDe(getHojaAsistencia(), COLUMNAS_ASISTENCIA)
+    .map(function (a) {
+      return {
+        fecha: fechaTexto(a.fecha),
+        legajo: String(a.legajo || '').trim(),
+        nombre: String(a.nombre || '').trim(),
+        estado: String(a.estado || '').trim(),
+        notas: String(a.notas || '').trim()
+      };
+    })
+    .filter(function (a) {
+      if (!a.fecha || !a.estado) return false;
+      if (a.fecha < desde) return false;
+      if (hasta && a.fecha > hasta) return false;
+      return true;
+    })
+    .sort(function (x, y) { return x.fecha < y.fecha ? 1 : x.fecha > y.fecha ? -1 : 0; });
+
+  return jsonResponse({ ok: true, desde: desde, asistencia: filas });
+}
+
+/**
+ * Guarda la asistencia de un día completo de una sola vez.
+ *
+ * Reemplaza lo que ya hubiera de esa fecha para las personas enviadas: se
+ * marca al empezar la jornada y se corrige durante el día, y sin esto cada
+ * corrección dejaría una fila más en vez de arreglar la que estaba.
+ */
+function guardarAsistencia(datos) {
+  const fecha = String(datos.fecha || '').trim() ||
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const marcas = datos.marcas || [];
+  if (!marcas.length) return jsonResponse({ ok: false, error: 'No se marcó a nadie.' });
+
+  const invalido = marcas.filter(function (m) {
+    return ESTADOS_ASISTENCIA.indexOf(String(m.estado || '').trim()) === -1;
+  });
+  if (invalido.length) {
+    return jsonResponse({ ok: false, error: 'Estado inválido: ' + invalido[0].estado });
+  }
+
+  const hoja = getHojaAsistencia();
+  const previas = filasDe(hoja, COLUMNAS_ASISTENCIA);
+  const creado = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+
+  const clave = function (f, legajo, nombre) {
+    return f + '|' + (String(legajo || '').trim() || normalizar(nombre));
+  };
+  const yaEstaba = {};
+  previas.forEach(function (p) {
+    if (fechaTexto(p.fecha) !== fecha) return;
+    yaEstaba[clave(fecha, p.legajo, p.nombre)] = p._fila;
+  });
+
+  const nuevas = [];
+  var actualizadas = 0;
+
+  marcas.forEach(function (m) {
+    const fila = {
+      fecha: fecha,
+      legajo: String(m.legajo || '').trim(),
+      nombre: String(m.nombre || '').trim(),
+      estado: String(m.estado || '').trim(),
+      notas: String(m.notas || '').trim(),
+      creado_en: creado
+    };
+    const k = clave(fecha, fila.legajo, fila.nombre);
+
+    if (yaEstaba[k]) {
+      escribirEn(hoja, yaEstaba[k], COLUMNAS_ASISTENCIA, fila);
+      actualizadas++;
+      return;
+    }
+    const nueva = [];
+    for (var c = 0; c < encabezados.length; c++) nueva.push('');
+    COLUMNAS_ASISTENCIA.forEach(function (campo) {
+      const j = indiceColumnaCon(encabezados, campo);
+      if (j !== -1) nueva[j] = fila[campo];
+    });
+    nuevas.push(nueva);
+  });
+
+  // Un solo setValues para todas las altas: appendRow de a una es lo que
+  // hace lenta a una jornada entera de quince personas.
+  if (nuevas.length) {
+    hoja.getRange(hoja.getLastRow() + 1, 1, nuevas.length, encabezados.length)
+      .setValues(nuevas);
+  }
+  SpreadsheetApp.flush();
+
+  return jsonResponse({
+    ok: true, fecha: fecha, guardadas: nuevas.length, actualizadas: actualizadas
+  });
+}
+
 /**
  * Chequeo de salud: abrir la URL del Web App en el navegador debe responder ok.
  *
@@ -417,6 +724,10 @@ function doGet() {
     servicio: 'RVH PCP',
     hoja_ordenes: getHojaOrdenes().getName(),
     hoja_registro: CONFIG.HOJA_REGISTRO,
+    empleados_activos: filasDe(getHojaEmpleados(), COLUMNAS_EMPLEADOS)
+      .filter(function (e) {
+        return String(e.nombre || '').trim() && String(e.activo).toUpperCase() !== 'FALSE';
+      }).length,
     columnas: encabezados,
     columnas_faltantes: faltan,
     filas_registro: Math.max(0, hoja.getLastRow() - 1)
@@ -459,6 +770,8 @@ function doPost(e) {
   // con dos personas mirando la planilla eso se sentía como "no responde".
   if (accion === 'leer_dia') return leerDia(datos);
   if (accion === 'leer_registro') return leerRegistro(datos);
+  if (accion === 'leer_empleados') return leerEmpleados(datos);
+  if (accion === 'leer_asistencia') return leerAsistencia(datos);
 
   const lock = LockService.getScriptLock();
 
@@ -481,6 +794,9 @@ function doPost(e) {
       return marcarFase(datos, otFase);
     }
     if (accion === 'borrar_registro') return borrarRegistro(datos);
+    if (accion === 'alta_empleado') return altaEmpleado(datos);
+    if (accion === 'baja_empleado') return bajaEmpleado(datos);
+    if (accion === 'guardar_asistencia') return guardarAsistencia(datos);
     if (accion !== 'carga_diaria') {
       return jsonResponse({ ok: false, error: 'Acción desconocida: ' + accion });
     }
@@ -509,6 +825,14 @@ function doPost(e) {
 
     const totalKg = moldes * kgPorMolde;
 
+    // El material se acepta solo donde significa algo. Se valida contra la
+    // lista para que no entren tres formas de escribir "hierro gris" y
+    // después no se pueda agrupar por aleación.
+    var material = String(datos.material || '').trim();
+    if (material && MATERIALES_FUNDICION.indexOf(material) === -1) {
+      return jsonResponse({ ok: false, error: 'Material desconocido: ' + material });
+    }
+
     // El parte diario mide producción del sector y nada más: no toca las
     // OT. En la planilla de papel tampoco figura ninguna, y obligar a
     // relacionarlas solo agregaba fricción al operario.
@@ -523,6 +847,7 @@ function doPost(e) {
       cantidad_moldes: moldes,
       kg_por_molde: kgPorMolde,
       total_kg: totalKg,
+      material: material,
       pieza: String(datos.pieza || '').trim(),
       observaciones: String(datos.observaciones || '').trim(),
       // Cuándo se cargó, que no es lo mismo que cuándo se produjo: sirve

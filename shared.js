@@ -21,7 +21,7 @@ window.RVH = (function () {
     // Debe coincidir con VERSION en apps-script/Code.gs. Si la planilla
     // tiene publicada una versión anterior, los errores que devuelve no se
     // parecen a la causa real, así que se detecta y se dice explícitamente.
-    API_VERSION: 7,
+    API_VERSION: 8,
 
     REFRESH_MS: 60000,
 
@@ -76,6 +76,27 @@ window.RVH = (function () {
     const u = unidadDe(sector);
     return n.toLocaleString('es-PY') + ' ' + (n === 1 ? u.sing : u.plural);
   }
+
+  // Aleaciones que se cuelan en fundición. Debe coincidir con
+  // MATERIALES_FUNDICION en apps-script/Code.gs, que valida contra la misma
+  // lista: si se desincronizan, el script rechaza lo que la página ofrece.
+  const MATERIALES_FUNDICION = [
+    'Hierro gris', 'Nodular', 'Acero', 'Acero al manganeso', 'Bronce', 'Aluminio'
+  ];
+
+  // Estados de asistencia, con el color con que se pintan en la grilla.
+  // "Presente" es el caso normal y va en verde; el resto se distingue para
+  // que una jornada se lea de un vistazo sin tener que contar.
+  const ESTADOS_ASISTENCIA = [
+    { nombre: 'Presente', color: 'var(--verde)', corto: 'P' },
+    { nombre: 'Ausente', color: 'var(--rojo)', corto: 'A' },
+    { nombre: 'Permiso', color: 'var(--ambar)', corto: 'Pe' },
+    { nombre: 'Reposo', color: 'var(--steel)', corto: 'R' },
+    { nombre: 'Vacaciones', color: 'var(--neutro)', corto: 'V' }
+  ];
+
+  const estadoAsistencia = nombre => ESTADOS_ASISTENCIA
+    .filter(e => normalize(e.nombre) === normalize(nombre))[0] || null;
 
   // Recorrido productivo de un pedido. Cada fase, al marcarse, estampa su
   // fecha en la columna homónima de la planilla: eso es lo que después
@@ -852,7 +873,7 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
    * falla por CORS.
    */
   // Acciones que solo leen: se pueden repetir sin consecuencias.
-  const ACCIONES_LECTURA = ['leer_dia', 'leer_registro'];
+  const ACCIONES_LECTURA = ['leer_dia', 'leer_registro', 'leer_empleados', 'leer_asistencia'];
 
   async function enviar(cuerpo) {
     if (!CONFIG.API_URL) {
@@ -979,6 +1000,47 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     return json.filas || [];
   }
 
+  // ---------------------------------------------------------------------
+  // Personal y asistencia
+  // ---------------------------------------------------------------------
+
+  /** Personal cargado. Por defecto solo el activo. */
+  async function leerEmpleados(incluirBajas) {
+    const json = await enviar({ accion: 'leer_empleados', todos: incluirBajas ? 'si' : '' });
+    return json.empleados || [];
+  }
+
+  /** Alta de una persona o de una lista entera. */
+  async function altaEmpleado(empleados) {
+    const lista = Array.isArray(empleados) ? empleados : [empleados];
+    const json = await enviar({ accion: 'alta_empleado', empleados: lista });
+    return { altas: json.altas || 0, actualizados: json.actualizados || 0 };
+  }
+
+  /** Baja (o reingreso) de una persona. No borra su historial. */
+  async function bajaEmpleado(legajo, nombre, opciones) {
+    const o = opciones || {};
+    const json = await enviar({
+      accion: 'baja_empleado', legajo: legajo || '', nombre: nombre || '',
+      reingreso: o.reingreso ? 'si' : '', notas: o.notas || ''
+    });
+    return json;
+  }
+
+  /** Asistencia desde una fecha, más nueva primero. */
+  async function leerAsistencia(desde, hasta) {
+    const json = await enviar({
+      accion: 'leer_asistencia', desde: desde || '', hasta: hasta || ''
+    });
+    return json.asistencia || [];
+  }
+
+  /** Guarda la jornada completa de una fecha de una sola vez. */
+  async function guardarAsistencia(fecha, marcas) {
+    const json = await enviar({ accion: 'guardar_asistencia', fecha: fecha, marcas: marcas });
+    return json;
+  }
+
   /** Borra tandas del parte diario por id. */
   async function borrarRegistro(ids) {
     const json = await enviar({ accion: 'borrar_registro', ids: ids });
@@ -1034,6 +1096,14 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     UNIDADES,
     unidadDe,
     contar,
+    MATERIALES_FUNDICION,
+    ESTADOS_ASISTENCIA,
+    estadoAsistencia,
+    leerEmpleados,
+    altaEmpleado,
+    bajaEmpleado,
+    leerAsistencia,
+    guardarAsistencia,
     sugerirOT,
     ESTADOS,
     FASES,
