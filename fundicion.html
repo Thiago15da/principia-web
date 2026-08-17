@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fundición · RVH Fundición</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1E353B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RVH Fundición">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .hoja{max-width:900px;margin:0 auto;padding:18px 14px 70px}
+  .lab{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:600;margin-bottom:5px}
+  .campo{width:100%;padding:11px 12px;font-size:16px;font-weight:500;background:var(--surface);
+    border:1px solid var(--rule);border-radius:2px;outline:none;font-family:var(--sans)}
+  .campo:focus{border-color:var(--steel);box-shadow:0 0 0 3px rgba(44,74,82,.15)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+  .kpi{background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:12px 14px}
+  .kpi .rot{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  .kpi .val{font-family:var(--cond);font-size:28px;font-weight:700;line-height:1.1;margin-top:2px}
+  .kpi .val u{text-decoration:none;font-size:12.5px;color:var(--ink-soft);font-family:var(--sans);font-weight:500}
+  .kpi .pie{font-size:11px;color:var(--ink-soft);margin-top:1px}
+
+  .panel{background:var(--surface);border:1px solid var(--rule);border-radius:2px;
+    padding:14px 16px;margin-bottom:14px}
+  .panel h3{font-family:var(--cond);font-size:15px;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;margin:0 0 2px}
+  .panel .sub{font-size:11.5px;color:var(--ink-soft);margin-bottom:12px}
+
+  .rangoGrid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end}
+  /* Sin esto, el ancho mínimo intrínseco de un input date (grande en el
+     celular) empuja la columna más allá del 1fr y desborda el panel. */
+  .rangoGrid > *{min-width:0}
+  .atajos{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .atajos button{padding:6px 11px;border:1px solid var(--steel);background:var(--surface);
+    color:var(--steel);border-radius:2px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .atajos button:hover{background:#EEF2F2}
+
+  .tabbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tabbar button{padding:9px 16px;border:1px solid var(--rule);background:var(--surface);
+    font-weight:600;font-size:13.5px;border-radius:2px;cursor:pointer;font-family:var(--sans)}
+  .tabbar button[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:#fff}
+
+  /* El gris del bruto no es var(--rule): contra la superficie daba 1.54:1 y
+     la barra se perdía en un celular al sol. Este pasa 3:1 y mantiene ΔE 24
+     contra el acero del neto, así que sigue leyéndose como el fondo de la
+     otra sin desaparecer. */
+  .chartbox{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .chart{display:block}
+  .chart .bruto{fill:#938D7C}
+  .chart .neto{fill:var(--steel)}
+  .chart .grid{stroke:var(--rule);stroke-width:1}
+  .chart .base{stroke:var(--ink-soft);stroke-width:1;opacity:.45}
+  .chart text{font-family:var(--mono);font-size:9.5px;fill:var(--ink-soft)}
+  .chart text.dato{font-weight:600;fill:var(--ink)}
+  .leyenda{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin-bottom:10px}
+  .leyenda span{display:flex;align-items:center;gap:5px}
+  .leyenda i{width:11px;height:11px;border-radius:2px;display:block}
+
+  .rend{font-family:var(--mono);font-weight:600}
+  .rend.alto{color:var(--verde)}
+  .rend.medio{color:var(--ambar)}
+  .rend.bajo{color:var(--rojo)}
+  .parcial{font-size:10.5px;color:var(--ambar);font-weight:600}
+
+  .pesFila{display:flex;align-items:center;gap:10px;font-size:13px;padding:8px 10px;
+    border:1px solid var(--rule);border-radius:2px;flex-wrap:wrap;margin-bottom:6px}
+  .pesFila .per{flex:1;min-width:150px;font-weight:600}
+  .pesFila .kg{font-family:var(--mono);font-weight:600}
+  .pesFila .btn{padding:5px 11px;font-size:12px}
+
+  @media (max-width:640px){
+    .rangoGrid{grid-template-columns:1fr}
+    .atajos button{flex:1}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar" style="position:sticky;top:0;z-index:20">
+  <img src="IMG_8258.png" alt="RVH" style="height:38px;width:auto;object-fit:contain" onerror="this.style.display='none'">
+  <div style="flex:1;min-width:120px">
+    <b style="font-family:var(--cond);font-size:20px;letter-spacing:.02em">FUNDICIÓN</b>
+    <div style="font-size:11px;color:var(--ink-soft)">Peso bruto, neto y rendimiento</div>
+  </div>
+  <a class="btn ghost" href="carga.html">Producción</a>
+  <a class="btn ghost" href="asistencia.html">Asistencia</a>
+</div>
+
+<div class="hoja">
+
+  <div id="aviso"></div>
+
+  <div class="panel">
+    <h3>Cargar peso bruto</h3>
+    <div class="sub">El bruto es todo el metal colado, con bebederos y mazarotas. El neto sale
+      solo de la carga diaria de Fundición. Repetir un período corrige el número, no lo duplica.</div>
+
+    <div class="atajos" id="atajos"></div>
+
+    <div class="rangoGrid">
+      <div>
+        <label class="lab" for="desde">Desde</label>
+        <input id="desde" type="date" class="campo">
+      </div>
+      <div>
+        <label class="lab" for="hasta">Hasta</label>
+        <input id="hasta" type="date" class="campo">
+      </div>
+      <div>
+        <label class="lab" for="bruto">Peso bruto (kg)</label>
+        <input id="bruto" class="campo" type="number" min="0" step="0.01" inputmode="decimal">
+      </div>
+      <button type="button" class="btn" id="guardar" style="padding:11px 18px">Guardar</button>
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="lab" for="notas">Notas (opcional)</label>
+      <input id="notas" class="campo" placeholder="Ej: incluye la colada del sábado" autocomplete="off">
+    </div>
+
+    <div id="previa" style="margin-top:10px;font-size:12.5px;color:var(--ink-soft)"></div>
+  </div>
+
+  <h2 class="sec">Resumen</h2>
+  <div class="tabbar" id="tabs"></div>
+  <div id="resumen"></div>
+
+  <h2 class="sec">Períodos cargados</h2>
+  <div id="pesadas"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const R = window.RVH;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const kg = n => Math.round(n).toLocaleString('es-PY');
+  const sumar = (a, f) => a.reduce((s, x) => s + f(x), 0);
+
+  let pesadas = [];       // bruto por período cargado
+  let netoDia = {};       // fecha ISO -> kg netos de Fundición ese día
+  let tipo = 'semana';
+  let pedido = 0;
+
+  // ---------------- rango a cargar ----------------
+
+  const isoDe = d => d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+
+  /** Lunes a sábado de la semana que contiene una fecha. */
+  function semanaDe(fecha) {
+    const l = R.lunesDe(fecha);
+    const s = new Date(l); s.setDate(s.getDate() + 5);
+    return { desde: isoDe(l), hasta: isoDe(s) };
+  }
+
+  function ponerRango(r) {
+    $('#desde').value = r.desde;
+    $('#hasta').value = r.hasta;
+    pintarPrevia();
+  }
+
+  [['Esta semana', 0], ['Semana pasada', -7], ['Hace dos semanas', -14]].forEach(([txt, dias]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = txt;
+    b.addEventListener('click', () => {
+      const d = new Date(); d.setDate(d.getDate() + dias);
+      ponerRango(semanaDe(isoDe(d)));
+    });
+    $('#atajos').appendChild(b);
+  });
+
+  /**
+   * Adelanta lo que el rango elegido ya tiene de neto, y avisa si ese período
+   * ya fue cargado: guardar encima corrige, y conviene saberlo antes.
+   */
+  function pintarPrevia() {
+    const d = $('#desde').value, h = $('#hasta').value;
+    if (!d || !h || h < d) { $('#previa').textContent = ''; return; }
+
+    const dias = R.diasEntre(d, h);
+    const neto = sumar(dias, f => netoDia[f] || 0);
+    const conCarga = dias.filter(f => netoDia[f]).length;
+
+    const ya = pesadas.filter(p => p.desde === d && p.hasta === h)[0];
+    if (ya) $('#bruto').placeholder = kg(ya.peso_bruto);
+
+    $('#previa').innerHTML =
+      `Neto de la carga diaria en este rango: <b>${kg(neto)} kg</b> ` +
+      `<span style="opacity:.8">(${conCarga} de ${dias.length} días con carga)</span>` +
+      (ya ? ` · <span class="parcial">Este período ya tiene ${kg(ya.peso_bruto)} kg cargados; guardar lo reemplaza.</span>` : '');
+  }
+
+  ['#desde', '#hasta'].forEach(s => $(s).addEventListener('change', pintarPrevia));
+
+  $('#guardar').addEventListener('click', async () => {
+    const desde = $('#desde').value, hasta = $('#hasta').value;
+    const bruto = Number($('#bruto').value);
+
+    if (!desde || !hasta) return aviso('Elegí el período.', 'err');
+    if (hasta < desde) return aviso('La fecha final es anterior a la inicial.', 'err');
+    if (!(bruto > 0)) return aviso('El peso bruto tiene que ser mayor a 0.', 'err');
+
+    // El bruto no puede ser menor que el neto: la pieza no puede pesar más
+    // que el metal del que salió. Casi siempre es un dígito de menos.
+    const neto = sumar(R.diasEntre(desde, hasta), f => netoDia[f] || 0);
+    if (neto > 0 && bruto < neto && !confirm(
+      'El bruto (' + kg(bruto) + ' kg) es menor que el neto ya cargado (' + kg(neto) +
+      ' kg), y eso no puede pasar: la pieza no pesa más que el metal del que salió. ' +
+      '¿Guardar igual?')) return;
+
+    $('#guardar').disabled = true;
+    $('#guardar').textContent = 'Guardando...';
+    try {
+      const r = await R.guardarPesada({
+        desde: desde, hasta: hasta, peso_bruto: bruto, notas: $('#notas').value.trim()
+      });
+      aviso(r.actualizada
+        ? 'Período corregido: ' + kg(bruto) + ' kg brutos.'
+        : 'Cargado: ' + kg(bruto) + ' kg brutos.', 'ok');
+      $('#bruto').value = ''; $('#notas').value = '';
+      await traerTodo();
+    } catch (err) {
+      aviso(err.message || 'No se pudo guardar.', 'err');
+    } finally {
+      $('#guardar').disabled = false;
+      $('#guardar').textContent = 'Guardar';
+    }
+  });
+
+  // ---------------- datos ----------------
+
+  function isoHaceDias(dias) {
+    const d = new Date(); d.setDate(d.getDate() - dias);
+    return isoDe(d);
+  }
+
+  async function traerTodo() {
+    const mio = ++pedido;
+    const desde = isoHaceDias(370);
+    try {
+      // Las dos lecturas van juntas: hojas distintas, sin candado de por medio.
+      const [regs, pes] = await Promise.all([
+        R.leerRegistro(desde, 'Fundición'),
+        R.leerPesadas(desde)
+      ]);
+      if (mio !== pedido) return;
+
+      netoDia = {};
+      regs.forEach(f => { netoDia[f.fecha] = (netoDia[f.fecha] || 0) + f.total_kg; });
+      pesadas = pes;
+
+      pintarPrevia();
+      pintarResumen();
+      pintarPesadas();
+    } catch (err) {
+      if (mio !== pedido) return;
+      $('#resumen').innerHTML = '<div class="err">No se pudieron leer los datos: ' +
+        esc(err.message) + ' <button type="button" id="reintentar">Reintentar</button></div>';
+      $('#reintentar').addEventListener('click', traerTodo);
+    }
+  }
+
+  // ---------------- resumen por período ----------------
+
+  /**
+   * Reparte el bruto de cada pesada entre los días que cubre, ponderando por
+   * el neto de cada día.
+   *
+   * Hace falta porque una semana que cruza el fin de mes no puede caer entera
+   * en uno de los dos meses. Repartirla en partes iguales sería peor: ya
+   * sabemos cuánto se produjo cada día, así que el reparto sigue esa forma.
+   * Solo cuando el rango no tiene ninguna carga diaria se divide parejo.
+   */
+  function brutoPorDia() {
+    const mapa = {};
+    pesadas.forEach(p => {
+      const dias = R.diasEntre(p.desde, p.hasta);
+      if (!dias.length) return;
+
+      const netoRango = sumar(dias, f => netoDia[f] || 0);
+      dias.forEach(f => {
+        const parte = netoRango > 0
+          ? (netoDia[f] || 0) / netoRango
+          : 1 / dias.length;
+        mapa[f] = (mapa[f] || 0) + p.peso_bruto * parte;
+      });
+    });
+    return mapa;
+  }
+
+  /**
+   * Agrupa neto y bruto por semana, mes o trimestre.
+   *
+   * Además de los totales lleva el par "emparejado": lo que corresponde a
+   * días que tienen las dos cifras. El rendimiento sale de ahí y no de los
+   * totales, porque un mes puede tener bruto en tres semanas y neto en
+   * cuatro, y dividir uno por otro daría un rendimiento inventado. Hacerlo
+   * por día en vez de por período lo deja correcto en las tres vistas.
+   */
+  function porPeriodo() {
+    const bruto = brutoPorDia();
+    const mapa = new Map();
+
+    const grupo = fecha => {
+      const p = R.periodoDe(fecha, tipo);
+      if (!p) return null;
+      var g = mapa.get(p.clave);
+      if (!g) {
+        g = { clave: p.clave, etiqueta: p.etiqueta, corta: p.corta,
+              neto: 0, bruto: 0, netoM: 0, brutoM: 0 };
+        mapa.set(p.clave, g);
+      }
+      return g;
+    };
+
+    const fechas = {};
+    Object.keys(netoDia).forEach(f => { fechas[f] = 1; });
+    Object.keys(bruto).forEach(f => { fechas[f] = 1; });
+
+    Object.keys(fechas).forEach(f => {
+      const g = grupo(f);
+      if (!g) return;
+      const n = netoDia[f] || 0, b = bruto[f] || 0;
+      g.neto += n;
+      g.bruto += b;
+      if (n > 0 && b > 0) { g.netoM += n; g.brutoM += b; }
+    });
+
+    return Array.from(mapa.values()).sort((a, b) => a.clave < b.clave ? -1 : 1);
+  }
+
+  /** Un período está completo si todo su neto y su bruto se emparejaron. */
+  const completoP = f => f.brutoM > 0 && f.netoM > 0 &&
+    Math.round(f.neto) === Math.round(f.netoM) && Math.round(f.bruto) === Math.round(f.brutoM);
+
+  ['semana', 'mes', 'trimestre'].forEach(t => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+    b.setAttribute('aria-pressed', String(t === tipo));
+    b.addEventListener('click', () => {
+      tipo = t;
+      $('#tabs').querySelectorAll('button').forEach(x =>
+        x.setAttribute('aria-pressed', String(x.textContent.toLowerCase() === t)));
+      pintarResumen();
+    });
+    $('#tabs').appendChild(b);
+  });
+
+  const claseRend = r => r >= 65 ? 'alto' : r >= 50 ? 'medio' : 'bajo';
+
+  /** "1 mes" / "4 meses": el plural de mes no es agregarle una ese. */
+  const plural = (n, t) => n + ' ' + (n === 1 ? t : (t === 'mes' ? 'meses' : t + 's'));
+
+  function pintarResumen() {
+    const filas = porPeriodo();
+    if (!filas.length) {
+      $('#resumen').innerHTML = '<div class="empty"><b>Todavía no hay datos</b>' +
+        'Cargá el peso bruto de una semana, o registrá producción de Fundición en la carga diaria.</div>';
+      return;
+    }
+
+    const totBruto = sumar(filas, f => f.bruto);
+    const totNeto = sumar(filas, f => f.neto);
+
+    // El rendimiento se calcula SOLO sobre los períodos que tienen las dos
+    // cifras. Dividir el neto total por el bruto total daba un número
+    // inflado: la semana en curso ya tiene producción cargada pero el bruto
+    // recién se pesa al cerrarla, así que siempre sobra neto sin su bruto.
+    const conRend = filas.filter(f => f.brutoM > 0 && f.netoM > 0);
+    const brutoComp = sumar(conRend, f => f.brutoM);
+    const netoComp = sumar(conRend, f => f.netoM);
+    const rendGral = brutoComp > 0 ? netoComp / brutoComp * 100 : 0;
+    const parciales = filas.filter(f => f.brutoM > 0 && !completoP(f)).length;
+    const mejor = conRend.slice().sort((a, b) => (b.netoM / b.brutoM) - (a.netoM / a.brutoM))[0];
+
+    $('#resumen').innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><div class="rot">Bruto colado</div>
+          <div class="val">${kg(totBruto)} <u>kg</u></div>
+          <div class="pie">${plural(filas.length, tipo)}</div></div>
+        <div class="kpi"><div class="rot">Neto producido</div>
+          <div class="val">${kg(totNeto)} <u>kg</u></div>
+          <div class="pie">de la carga diaria</div></div>
+        <div class="kpi"><div class="rot">Rendimiento</div>
+          <div class="val ${conRend.length ? 'rend ' + claseRend(rendGral) : ''}">${
+            conRend.length ? rendGral.toFixed(1) + '%' : '—'}</div>
+          <div class="pie">${conRend.length
+            ? 'sobre los días con las dos cifras' +
+              (parciales ? ' · <span class="parcial">' + plural(parciales, tipo) + ' a medias</span>' : '')
+            : 'falta cargar bruto'}</div></div>
+        <div class="kpi"><div class="rot">Merma</div>
+          <div class="val">${conRend.length ? kg(brutoComp - netoComp) : '—'} ${conRend.length ? '<u>kg</u>' : ''}</div>
+          <div class="pie">${mejor ? 'mejor ' + tipo + ': ' + esc(mejor.corta) +
+            ' (' + (mejor.netoM / mejor.brutoM * 100).toFixed(0) + '%)' : 'bebederos y mazarotas'}</div></div>
+      </div>
+
+      <div class="panel">
+        <h3>Bruto contra neto</h3>
+        <div class="sub">Por ${esc(tipo)}${filas.length > 24 ? ' · últimos 24' : ''}</div>
+        <div class="leyenda">
+          <span><i style="background:#938D7C"></i>Bruto colado</span>
+          <span><i style="background:var(--steel)"></i>Neto producido</span>
+        </div>
+        <div class="chartbox">${grafico(filas.slice(-24))}</div>
+      </div>
+
+      <div class="panel">
+        <h3>Detalle</h3>
+        <div class="sub">Los períodos sin las dos cifras no calculan rendimiento</div>
+        <div class="tablebox"><table><thead><tr>
+          <th>${esc(tipo.charAt(0).toUpperCase() + tipo.slice(1))}</th>
+          <th class="num">Bruto</th><th class="num">Neto</th>
+          <th class="num">Merma</th><th class="num">Rendimiento</th>
+        </tr></thead><tbody>${filas.slice().reverse().map(f => {
+          const listo = f.brutoM > 0 && f.netoM > 0;
+          const r = listo ? f.netoM / f.brutoM * 100 : 0;
+          const aMedias = listo && !completoP(f);
+          return `<tr style="cursor:default">
+            <td>${esc(f.etiqueta)}</td>
+            <td class="num mono">${f.bruto > 0 ? kg(f.bruto) : '—'}</td>
+            <td class="num mono">${f.neto > 0 ? kg(f.neto) : '—'}</td>
+            <td class="num mono">${listo ? kg(f.brutoM - f.netoM) : '—'}</td>
+            <td class="num">${listo
+              ? '<span class="rend ' + claseRend(r) + '">' + r.toFixed(1) + '%</span>' +
+                (aMedias ? '<br><span class="parcial">parcial</span>' : '')
+              : '<span class="parcial">' + (f.bruto > 0 ? 'sin neto' : 'sin bruto') + '</span>'}</td>
+          </tr>`;
+        }).join('')}</tbody></table></div>
+      </div>`;
+  }
+
+  /**
+   * Dos barras por período: el bruto atrás en gris y el neto adelante en
+   * acero. Superpuestas y no apiladas porque el neto es una parte del bruto,
+   * no algo que se le sume: apilarlas mostraría un total que no existe.
+   */
+  function grafico(filas) {
+    const padL = 52, padR = 24, padT = 18, padB = 32;
+    const alto = 200;
+    const dispon = Math.max(300, ($('#resumen').clientWidth || 700) - 36);
+    const anchoGrupo = Math.max(16, Math.min(64,
+      Math.floor((dispon - padL - padR) / Math.max(filas.length, 1))));
+    const ancho = Math.max(300, padL + padR + filas.length * anchoGrupo);
+    const h = alto - padT - padB;
+
+    const max = Math.max.apply(null, filas.map(f => Math.max(f.bruto, f.neto))) || 1;
+    const paso = Math.pow(10, Math.floor(Math.log10(max))) / 2;
+    const techo = Math.ceil(max / paso) * paso || 1;
+    const y = v => padT + h - (v / techo) * h;
+
+    const lineas = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const v = techo * p, yy = y(v);
+      return `<line class="${p ? 'grid' : 'base'}" x1="${padL}" y1="${yy}" x2="${ancho - padR}" y2="${yy}"/>
+        <text x="${padL - 6}" y="${yy + 3}" text-anchor="end">${Math.round(v).toLocaleString('es-PY')}</text>`;
+    }).join('');
+
+    const caben = Math.max(2, Math.floor((ancho - padL - padR) / 52));
+    const cadaN = Math.ceil(filas.length / caben);
+
+    const barra = (x, w, v) => {
+      const yy = y(v), alt = Math.max(padT + h - yy, 1);
+      const r = Math.min(4, w / 2, alt);
+      return `M${x},${yy + alt} L${x},${yy + r} Q${x},${yy} ${x + r},${yy} ` +
+        `L${x + w - r},${yy} Q${x + w},${yy} ${x + w},${yy + r} L${x + w},${yy + alt} Z`;
+    };
+
+    const grupos = filas.map((f, i) => {
+      const x = padL + i * anchoGrupo;
+      const wB = anchoGrupo - 2;
+      // El neto va más angosto y centrado, para que el bruto se vea detrás.
+      const wN = Math.max(4, Math.round(wB * 0.52));
+      const xN = x + Math.round((wB - wN) / 2);
+      const rend = f.brutoM > 0 && f.netoM > 0 ? (f.netoM / f.brutoM * 100).toFixed(0) + '%' : '';
+
+      const etiq = (i === filas.length - 1 && rend)
+        ? `<text class="dato" x="${x + wB / 2}" y="${y(f.bruto) - 5}" text-anchor="middle">${rend}</text>` : '';
+      const rot = (i === filas.length - 1 || (i % cadaN === 0 && filas.length - 1 - i >= Math.max(1, cadaN)))
+        ? `<text x="${x + wB / 2}" y="${padT + h + 13}" text-anchor="middle">${esc(f.corta)}</text>` : '';
+
+      return `<g>
+        ${f.bruto > 0 ? `<path class="bruto" d="${barra(x, wB, f.bruto)}"><title>${
+          esc(f.etiqueta)} · bruto ${kg(f.bruto)} kg</title></path>` : ''}
+        ${f.neto > 0 ? `<path class="neto" d="${barra(xN, wN, f.neto)}"><title>${
+          esc(f.etiqueta)} · neto ${kg(f.neto)} kg${rend ? ' · rendimiento ' + rend : ''}</title></path>` : ''}
+        ${etiq}${rot}</g>`;
+    }).join('');
+
+    return `<svg class="chart" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}"
+      role="img" aria-label="Peso bruto y neto por ${esc(tipo)}">${lineas}${grupos}</svg>`;
+  }
+
+  // ---------------- períodos cargados ----------------
+
+  function pintarPesadas() {
+    if (!pesadas.length) {
+      $('#pesadas').innerHTML = '<div class="empty">Todavía no se cargó ningún peso bruto.</div>';
+      return;
+    }
+    $('#pesadas').innerHTML = pesadas.map(p => {
+      const neto = sumar(R.diasEntre(p.desde, p.hasta), f => netoDia[f] || 0);
+      const r = p.peso_bruto > 0 && neto > 0 ? neto / p.peso_bruto * 100 : null;
+      return `<div class="pesFila">
+        <span class="per">${esc(fechaLinda(p.desde))} al ${esc(fechaLinda(p.hasta))}
+          ${p.notas ? '<span style="font-weight:400;color:var(--ink-soft)"> · ' + esc(p.notas) + '</span>' : ''}</span>
+        <span class="kg">${kg(p.peso_bruto)} kg brutos</span>
+        <span class="kg" style="color:var(--ink-soft)">${neto ? kg(neto) + ' kg netos' : 'sin neto'}</span>
+        ${r != null ? '<span class="rend ' + claseRend(r) + '">' + r.toFixed(1) + '%</span>' : ''}
+        <button type="button" class="btn warn" data-id="${p.id}"
+          data-per="${esc(fechaLinda(p.desde))} al ${esc(fechaLinda(p.hasta))}">Borrar</button>
+      </div>`;
+    }).join('');
+  }
+
+  $('#pesadas').addEventListener('click', async e => {
+    const b = e.target.closest('button[data-id]');
+    if (!b) return;
+    if (!confirm('Borrar el peso bruto de ' + b.dataset.per + '. ¿Confirmás?')) return;
+    b.disabled = true;
+    try {
+      await R.borrarPesada([Number(b.dataset.id)]);
+      aviso('Período borrado.', 'ok');
+      await traerTodo();
+    } catch (err) {
+      aviso(err.message || 'No se pudo borrar.', 'err');
+      b.disabled = false;
+    }
+  });
+
+  function fechaLinda(iso) {
+    const d = R.parseFecha(iso);
+    return d ? R.formatFecha(d) : iso;
+  }
+
+  function aviso(msg, tipoAviso) {
+    const col = { ok: 'var(--verde)', err: 'var(--rojo)', warn: 'var(--ambar)' }[tipoAviso] || 'var(--verde)';
+    $('#aviso').innerHTML = `<div style="border:1px solid ${col};color:${col};background:var(--surface);
+      padding:10px 14px;border-radius:2px;font-size:13.5px;font-weight:600;margin-bottom:14px">${esc(msg)}</div>`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ---------------- init ----------------
+  ponerRango(semanaDe(R.hoyISO()));
+  $('#resumen').innerHTML = '<div class="empty">Cargando...</div>';
+  traerTodo();
+})();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js').catch(e => console.error('SW:', e));
+    });
+  }
+</script>
+</body>
+</html>

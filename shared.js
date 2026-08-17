@@ -21,7 +21,7 @@ window.RVH = (function () {
     // Debe coincidir con VERSION en apps-script/Code.gs. Si la planilla
     // tiene publicada una versión anterior, los errores que devuelve no se
     // parecen a la causa real, así que se detecta y se dice explícitamente.
-    API_VERSION: 9,
+    API_VERSION: 10,
 
     REFRESH_MS: 60000,
 
@@ -98,6 +98,75 @@ window.RVH = (function () {
 
   const estadoAsistencia = nombre => ESTADOS_ASISTENCIA
     .filter(e => normalize(e.nombre) === normalize(nombre))[0] || null;
+
+  // ---------------------------------------------------------------------
+  // Períodos: semana, mes y trimestre
+  // ---------------------------------------------------------------------
+
+  const isoDe = d => d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+
+  /** Lunes de la semana de una fecha. La semana arranca lunes, como el taller. */
+  function lunesDe(fecha) {
+    const d = typeof fecha === 'string' ? parseFecha(fecha) : new Date(fecha);
+    if (!d) return null;
+    const l = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    // getDay() da 0 el domingo, que pertenece a la semana que arrancó el
+    // lunes anterior, no a la que empieza al día siguiente.
+    l.setDate(l.getDate() - ((l.getDay() + 6) % 7));
+    return l;
+  }
+
+  const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+  /**
+   * A qué período pertenece una fecha. Devuelve una clave ordenable y una
+   * etiqueta para mostrar, para poder agrupar y rotular con lo mismo.
+   */
+  function periodoDe(iso, tipo) {
+    const d = parseFecha(iso);
+    if (!d) return null;
+
+    if (tipo === 'semana') {
+      const l = lunesDe(d);
+      const f = new Date(l); f.setDate(f.getDate() + 6);
+      return {
+        clave: isoDe(l),
+        etiqueta: l.getDate() + ' ' + MESES_LARGOS[l.getMonth()].slice(0, 3) +
+          ' al ' + f.getDate() + ' ' + MESES_LARGOS[f.getMonth()].slice(0, 3),
+        corta: isoDe(l).slice(5).replace('-', '/')
+      };
+    }
+    if (tipo === 'trimestre') {
+      const t = Math.floor(d.getMonth() / 3) + 1;
+      return {
+        clave: d.getFullYear() + '-T' + t,
+        etiqueta: 'T' + t + ' ' + d.getFullYear(),
+        corta: 'T' + t
+      };
+    }
+    // Mes por defecto.
+    return {
+      clave: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'),
+      etiqueta: MESES_LARGOS[d.getMonth()] + ' ' + d.getFullYear(),
+      corta: MESES_LARGOS[d.getMonth()].slice(0, 3)
+    };
+  }
+
+  /** Los días de un rango, inclusive, como ISO. */
+  function diasEntre(desde, hasta) {
+    const a = parseFecha(desde), b = parseFecha(hasta);
+    if (!a || !b || b < a) return [];
+    const dias = [];
+    const cur = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+    while (cur <= b && dias.length < 400) {
+      dias.push(isoDe(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dias;
+  }
 
   // Recorrido productivo de un pedido. Cada fase, al marcarse, estampa su
   // fecha en la columna homónima de la planilla: eso es lo que después
@@ -874,7 +943,8 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
    * falla por CORS.
    */
   // Acciones que solo leen: se pueden repetir sin consecuencias.
-  const ACCIONES_LECTURA = ['leer_dia', 'leer_registro', 'leer_empleados', 'leer_asistencia'];
+  const ACCIONES_LECTURA = ['leer_dia', 'leer_registro', 'leer_empleados',
+    'leer_asistencia', 'leer_pesadas'];
 
   async function enviar(cuerpo) {
     if (!CONFIG.API_URL) {
@@ -1042,6 +1112,26 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     return json;
   }
 
+  // ---------------------------------------------------------------------
+  // Pesadas de fundición
+  // ---------------------------------------------------------------------
+
+  /** Pesadas registradas, de la más nueva a la más vieja. */
+  async function leerPesadas(desde) {
+    const json = await enviar({ accion: 'leer_pesadas', desde: desde || '' });
+    return json.pesadas || [];
+  }
+
+  /** Guarda el bruto de un período. Repetir las fechas corrige, no duplica. */
+  async function guardarPesada(datos) {
+    return enviar(Object.assign({ accion: 'guardar_pesada' }, datos));
+  }
+
+  async function borrarPesada(ids) {
+    const json = await enviar({ accion: 'borrar_pesada', ids: ids });
+    return json.borradas || 0;
+  }
+
   /** Borra tandas del parte diario por id. */
   async function borrarRegistro(ids) {
     const json = await enviar({ accion: 'borrar_registro', ids: ids });
@@ -1098,6 +1188,12 @@ OT-3006,18/06/2026,Fundiciones del Este,Según Modelo,SI incluye mecanizado,Norm
     unidadDe,
     contar,
     MATERIALES_FUNDICION,
+    periodoDe,
+    lunesDe,
+    diasEntre,
+    leerPesadas,
+    guardarPesada,
+    borrarPesada,
     ESTADOS_ASISTENCIA,
     estadoAsistencia,
     leerEmpleados,

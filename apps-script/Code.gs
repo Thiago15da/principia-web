@@ -15,7 +15,7 @@
 // Se sube al cambiar el contrato con la web. La app lo compara y avisa si
 // la planilla quedó con una versión vieja publicada: sin esto, un script
 // desactualizado da errores que no se parecen en nada a la causa real.
-const VERSION = 9;
+const VERSION = 10;
 
 const CONFIG = {
   // gid de la pestaña de órdenes de trabajo — es el mismo número que ya
@@ -26,6 +26,7 @@ const CONFIG = {
   HOJA_REGISTRO: 'registro_diario',
   HOJA_EMPLEADOS: 'empleados',
   HOJA_ASISTENCIA: 'asistencia',
+  HOJA_PESADAS: 'pesadas',
 
   // Clave compartida entre la web y este script. NO es un login de usuario
   // (el sistema no tiene usuarios); solo evita que alguien que encuentre la
@@ -56,6 +57,11 @@ const COLUMNAS_EMPLEADOS = ['legajo', 'nombre', 'sector', 'activo', 'desde', 'ha
 const COLUMNAS_ASISTENCIA = ['fecha', 'legajo', 'nombre', 'estado', 'notas', 'creado_en'];
 
 const ESTADOS_ASISTENCIA = ['Presente', 'Ausente', 'Permiso', 'Reposo', 'Vacaciones'];
+
+// Peso bruto colado por período. Va aparte del parte diario porque no se
+// mide igual: el neto sale de la carga de cada día, y el bruto lo pesa la
+// gerencia una vez por semana sobre el total del horno.
+const COLUMNAS_PESADAS = ['id', 'desde', 'hasta', 'peso_bruto', 'notas', 'creado_en'];
 
 // Aleaciones que se cuelan. Se guarda el texto tal cual para que la planilla
 // se lea sola, y la lista vive acá para que la página y el script no se
@@ -182,6 +188,10 @@ function getHojaEmpleados() {
 
 function getHojaAsistencia() {
   return getHojaCon(CONFIG.HOJA_ASISTENCIA, COLUMNAS_ASISTENCIA);
+}
+
+function getHojaPesadas() {
+  return getHojaCon(CONFIG.HOJA_PESADAS, COLUMNAS_PESADAS);
 }
 
 /**
@@ -704,6 +714,107 @@ function guardarAsistencia(datos) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Pesadas de fundición (peso bruto por período)
+// ---------------------------------------------------------------------------
+
+/** Pesadas registradas, de la más nueva a la más vieja. */
+function leerPesadas(datos) {
+  var desde = String(datos.desde || '').trim();
+
+  const filas = filasDe(getHojaPesadas(), COLUMNAS_PESADAS)
+    .map(function (p) {
+      return {
+        id: Number(p.id) || 0,
+        desde: fechaTexto(p.desde),
+        hasta: fechaTexto(p.hasta),
+        peso_bruto: Number(p.peso_bruto) || 0,
+        notas: String(p.notas || '').trim(),
+        creado_en: fechaHoraTexto(p.creado_en)
+      };
+    })
+    .filter(function (p) {
+      if (!p.desde || !p.hasta) return false;
+      // Se compara contra `hasta`: una semana que empieza antes del corte
+      // pero termina adentro igual tiene que aparecer.
+      return !desde || p.hasta >= desde;
+    })
+    .sort(function (a, b) { return a.desde < b.desde ? 1 : a.desde > b.desde ? -1 : 0; });
+
+  return jsonResponse({ ok: true, pesadas: filas });
+}
+
+/**
+ * Guarda el bruto de un período. Si ya hay una pesada con las mismas fechas
+ * se actualiza en lugar de sumar otra: cargar dos veces la misma semana es
+ * corregir un número, no registrar una colada más.
+ */
+function guardarPesada(datos) {
+  const desde = String(datos.desde || '').trim();
+  const hasta = String(datos.hasta || '').trim();
+  if (!desde || !hasta) return jsonResponse({ ok: false, error: 'Faltan las fechas del período.' });
+  if (hasta < desde) return jsonResponse({ ok: false, error: 'La fecha final es anterior a la inicial.' });
+
+  const bruto = Number(datos.peso_bruto);
+  if (!isFinite(bruto) || bruto <= 0) {
+    return jsonResponse({ ok: false, error: 'El peso bruto debe ser mayor a 0.' });
+  }
+
+  const hoja = getHojaPesadas();
+  const previas = filasDe(hoja, COLUMNAS_PESADAS);
+  const creado = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+
+  const fila = {
+    desde: desde, hasta: hasta, peso_bruto: bruto,
+    notas: String(datos.notas || '').trim(), creado_en: creado
+  };
+
+  for (var i = 0; i < previas.length; i++) {
+    if (fechaTexto(previas[i].desde) === desde && fechaTexto(previas[i].hasta) === hasta) {
+      fila.id = Number(previas[i].id) || (i + 1);
+      escribirEn(hoja, previas[i]._fila, COLUMNAS_PESADAS, fila);
+      SpreadsheetApp.flush();
+      return jsonResponse({ ok: true, id: fila.id, actualizada: true });
+    }
+  }
+
+  var maxId = 0;
+  previas.forEach(function (p) { maxId = Math.max(maxId, Number(p.id) || 0); });
+  fila.id = maxId + 1;
+
+  const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+  const nueva = [];
+  for (var c = 0; c < encabezados.length; c++) nueva.push('');
+  COLUMNAS_PESADAS.forEach(function (campo) {
+    const j = indiceColumnaCon(encabezados, campo);
+    if (j !== -1) nueva[j] = fila[campo];
+  });
+  hoja.appendRow(nueva);
+  SpreadsheetApp.flush();
+
+  return jsonResponse({ ok: true, id: fila.id, actualizada: false });
+}
+
+/** Borra pesadas por id, de abajo hacia arriba como el parte diario. */
+function borrarPesada(datos) {
+  const ids = (datos.ids || []).map(function (x) { return Number(x); })
+    .filter(function (n) { return isFinite(n) && n > 0; });
+  if (!ids.length) return jsonResponse({ ok: false, error: 'No se indicó qué borrar.' });
+
+  const hoja = getHojaPesadas();
+  const filas = filasDe(hoja, COLUMNAS_PESADAS);
+  const aBorrar = [];
+  filas.forEach(function (p) {
+    if (ids.indexOf(Number(p.id)) !== -1) aBorrar.push(p._fila);
+  });
+
+  aBorrar.sort(function (a, b) { return b - a; });
+  aBorrar.forEach(function (f) { hoja.deleteRow(f); });
+  SpreadsheetApp.flush();
+
+  return jsonResponse({ ok: true, borradas: aBorrar.length });
+}
+
 /**
  * Chequeo de salud: abrir la URL del Web App en el navegador debe responder ok.
  *
@@ -773,6 +884,7 @@ function doPost(e) {
   if (accion === 'leer_registro') return leerRegistro(datos);
   if (accion === 'leer_empleados') return leerEmpleados(datos);
   if (accion === 'leer_asistencia') return leerAsistencia(datos);
+  if (accion === 'leer_pesadas') return leerPesadas(datos);
 
   const lock = LockService.getScriptLock();
 
@@ -798,6 +910,8 @@ function doPost(e) {
     if (accion === 'alta_empleado') return altaEmpleado(datos);
     if (accion === 'baja_empleado') return bajaEmpleado(datos);
     if (accion === 'guardar_asistencia') return guardarAsistencia(datos);
+    if (accion === 'guardar_pesada') return guardarPesada(datos);
+    if (accion === 'borrar_pesada') return borrarPesada(datos);
     if (accion !== 'carga_diaria') {
       return jsonResponse({ ok: false, error: 'Acción desconocida: ' + accion });
     }
