@@ -21,7 +21,7 @@ window.RVH = (function () {
     // Debe coincidir con VERSION en apps-script/Code.gs. Si la planilla
     // tiene publicada una versión anterior, los errores que devuelve no se
     // parecen a la causa real, así que se detecta y se dice explícitamente.
-    API_VERSION: 8,
+    API_VERSION: 9,
 
     REFRESH_MS: 60000,
 
@@ -77,11 +77,12 @@ window.RVH = (function () {
     return n.toLocaleString('es-PY') + ' ' + (n === 1 ? u.sing : u.plural);
   }
 
-  // Aleaciones que se cuelan en fundición. Debe coincidir con
-  // MATERIALES_FUNDICION en apps-script/Code.gs, que valida contra la misma
-  // lista: si se desincronizan, el script rechaza lo que la página ofrece.
+  // Aleaciones que se cuelan en fundición. Esta lista manda: el script solo
+  // la usa para unificar mayúsculas y acentos, no para rechazar, así que
+  // sumar una aleación se hace acá y no obliga a republicarlo.
   const MATERIALES_FUNDICION = [
-    'Hierro gris', 'Nodular', 'Acero', 'Acero al manganeso', 'Bronce', 'Aluminio'
+    'Hierro gris', 'Nodular', 'Acero', 'Acero al manganeso', 'Aceros especiales',
+    'Bronce', 'Aluminio'
   ];
 
   // Estados de asistencia, con el color con que se pintan en la grilla.
