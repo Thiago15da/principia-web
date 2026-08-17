@@ -15,7 +15,7 @@
 // Se sube al cambiar el contrato con la web. La app lo compara y avisa si
 // la planilla quedó con una versión vieja publicada: sin esto, un script
 // desactualizado da errores que no se parecen en nada a la causa real.
-const VERSION = 8;
+const VERSION = 9;
 
 const CONFIG = {
   // gid de la pestaña de órdenes de trabajo — es el mismo número que ya
@@ -61,7 +61,8 @@ const ESTADOS_ASISTENCIA = ['Presente', 'Ausente', 'Permiso', 'Reposo', 'Vacacio
 // se lea sola, y la lista vive acá para que la página y el script no se
 // desincronicen.
 const MATERIALES_FUNDICION = [
-  'Hierro gris', 'Nodular', 'Acero', 'Acero al manganeso', 'Bronce', 'Aluminio'
+  'Hierro gris', 'Nodular', 'Acero', 'Acero al manganeso', 'Aceros especiales',
+  'Bronce', 'Aluminio'
 ];
 
 // Nombres alternativos aceptados para una columna del parte.
@@ -825,12 +826,19 @@ function doPost(e) {
 
     const totalKg = moldes * kgPorMolde;
 
-    // El material se acepta solo donde significa algo. Se valida contra la
-    // lista para que no entren tres formas de escribir "hierro gris" y
-    // después no se pueda agrupar por aleación.
-    var material = String(datos.material || '').trim();
-    if (material && MATERIALES_FUNDICION.indexOf(material) === -1) {
-      return jsonResponse({ ok: false, error: 'Material desconocido: ' + material });
+    // El material llega de una lista de botones, no de un campo escrito, así
+    // que no hace falta rechazarlo: lo único que importa para poder agrupar
+    // por aleación es que "hierro gris" y "Hierro Gris" queden iguales.
+    //
+    // Antes se rechazaba lo que no estuviera en la lista, y eso obligaba a
+    // republicar el script cada vez que el taller sumaba una aleación. Costaba
+    // más de lo que evitaba, contra un riesgo que la propia pantalla ya cierra.
+    var material = String(datos.material || '').trim().slice(0, 60);
+    for (var mi = 0; mi < MATERIALES_FUNDICION.length; mi++) {
+      if (normalizar(MATERIALES_FUNDICION[mi]) === normalizar(material)) {
+        material = MATERIALES_FUNDICION[mi];
+        break;
+      }
     }
 
     // El parte diario mide producción del sector y nada más: no toca las
